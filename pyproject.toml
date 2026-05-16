@@ -1,0 +1,47 @@
+[project]
+name = "low-bit-fake-quant"
+version = "0.1.0"
+description = "Triton-first low-bit fake-quant helpers and precision test plans for attention/video experiments."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "numpy>=2.0",
+    "torch~=2.12.0",
+    "triton~=3.7.0",
+    "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.8",
+]
+bench = [
+    "einops>=0.8",
+]
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/low_bit_fake_quant"]
+
+[tool.uv]
+required-version = ">=0.5.0"
+prerelease = "allow"
+index-strategy = "unsafe-best-match"
+
+[[tool.uv.index]]
+name = "pytorch-test-cu132"
+url = "https://download.pytorch.org/whl/test/cu132"
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-test-cu132" }]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
