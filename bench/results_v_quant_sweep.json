@@ -1,0 +1,452 @@
+{
+  "workloads": [
+    {
+      "path": "/home/dongyun/dataset/v-dit/wan21_p1/layer_0/timestep_0.pt",
+      "load_s": 1.4968640804290771,
+      "ref_s": 0.20935797691345215,
+      "configs": {
+        "V_fp8_channel__vsmooth_off": {
+          "mse": 0.0007966550183482468,
+          "rmse": 0.02822507782714242,
+          "cosine": 0.9979060009471705,
+          "seconds": 1.0739741325378418
+        },
+        "V_fp8_channel__vsmooth_per_block": {
+          "mse": 0.0007604958373121917,
+          "rmse": 0.02757708899271625,
+          "cosine": 0.9980017216754746,
+          "seconds": 1.0064668655395508
+        },
+        "V_fp8_block__vsmooth_off": {
+          "mse": 0.0007967018173076212,
+          "rmse": 0.02822590684650577,
+          "cosine": 0.997906008142823,
+          "seconds": 0.5463747978210449
+        },
+        "V_fp8_block__vsmooth_per_block": {
+          "mse": 0.0007603115518577397,
+          "rmse": 0.02757374751204014,
+          "cosine": 0.9980023140463312,
+          "seconds": 1.06071138381958
+        },
+        "V_mxfp8__vsmooth_off": {
+          "mse": 0.0007977760978974402,
+          "rmse": 0.028244930481370285,
+          "cosine": 0.9979030202011739,
+          "seconds": 0.598928689956665
+        },
+        "V_mxfp8__vsmooth_per_block": {
+          "mse": 0.0007609216263517737,
+          "rmse": 0.027584807890427183,
+          "cosine": 0.9980006492562079,
+          "seconds": 1.103830337524414
+        }
+      }
+    },
+    {
+      "path": "/home/dongyun/dataset/v-dit/wan21_p1/layer_0/timestep_29.pt",
+      "load_s": 1.1751971244812012,
+      "ref_s": 0.14958548545837402,
+      "configs": {
+        "V_fp8_channel__vsmooth_off": {
+          "mse": 0.0006556986481882632,
+          "rmse": 0.025606613368195787,
+          "cosine": 0.9993113916508187,
+          "seconds": 0.5571122169494629
+        },
+        "V_fp8_channel__vsmooth_per_block": {
+          "mse": 0.0006144049693830311,
+          "rmse": 0.02478719365686707,
+          "cosine": 0.9993543549406324,
+          "seconds": 0.569188117980957
+        },
+        "V_fp8_block__vsmooth_off": {
+          "mse": 0.0006556883454322815,
+          "rmse": 0.025606412193672927,
+          "cosine": 0.9993114210504607,
+          "seconds": 0.5483789443969727
+        },
+        "V_fp8_block__vsmooth_per_block": {
+          "mse": 0.0006145965890027583,
+          "rmse": 0.0247910586503029,
+          "cosine": 0.9993541452850747,
+          "seconds": 0.5746810436248779
+        },
+        "V_mxfp8__vsmooth_off": {
+          "mse": 0.0006565892254002392,
+          "rmse": 0.025623997061353234,
+          "cosine": 0.9993104468881668,
+          "seconds": 0.5993666648864746
+        },
+        "V_mxfp8__vsmooth_per_block": {
+          "mse": 0.0006151047418825328,
+          "rmse": 0.024801305245541673,
+          "cosine": 0.9993536106848263,
+          "seconds": 0.6504595279693604
+        }
+      }
+    },
+    {
+      "path": "/home/dongyun/dataset/v-dit/wan21_p1/layer_0/timestep_3.pt",
+      "load_s": 1.1710295677185059,
+      "ref_s": 0.15108919143676758,
+      "configs": {
+        "V_fp8_channel__vsmooth_off": {
+          "mse": 0.0008090322953648865,
+          "rmse": 0.02844349302327136,
+          "cosine": 0.9980181230969075,
+          "seconds": 0.5572476387023926
+        },
+        "V_fp8_channel__vsmooth_per_block": {
+          "mse": 0.000773443840444088,
+          "rmse": 0.02781085831908264,
+          "cosine": 0.9981059673957058,
+          "seconds": 0.5690150260925293
+        },
+        "V_fp8_block__vsmooth_off": {
+          "mse": 0.000809757097158581,
+          "rmse": 0.02845623125360386,
+          "cosine": 0.9980163852309283,
+          "seconds": 0.5473973751068115
+        },
+        "V_fp8_block__vsmooth_per_block": {
+          "mse": 0.0007733581587672234,
+          "rmse": 0.02780931784073862,
+          "cosine": 0.9981061632473189,
+          "seconds": 0.5751831531524658
+        },
+        "V_mxfp8__vsmooth_off": {
+          "mse": 0.000810219265986234,
+          "rmse": 0.028464350791581983,
+          "cosine": 0.9980153642392057,
+          "seconds": 0.5989916324615479
+        },
+        "V_mxfp8__vsmooth_per_block": {
+          "mse": 0.0007738913409411907,
+          "rmse": 0.02781890258333694,
+          "cosine": 0.9981048958281622,
+          "seconds": 0.6506667137145996
+        }
+      }
+    },
+    {
+      "path": "/home/dongyun/dataset/v-dit/wan21_p1/layer_0/timestep_49.pt",
+      "load_s": 1.1718511581420898,
+      "ref_s": 0.1495802402496338,
+      "configs": {
+        "V_fp8_channel__vsmooth_off": {
+          "mse": 0.0002493188076186925,
+          "rmse": 0.015789832412622135,
+          "cosine": 0.9998268367081224,
+          "seconds": 0.5564336776733398
+        },
+        "V_fp8_channel__vsmooth_per_block": {
+          "mse": 0.00014483288396149874,
+          "rmse": 0.012034653462459927,
+          "cosine": 0.9998990502637177,
+          "seconds": 0.5681905746459961
+        },
+        "V_fp8_block__vsmooth_off": {
+          "mse": 0.000245829374762252,
+          "rmse": 0.015678946863939936,
+          "cosine": 0.9998291975776737,
+          "seconds": 0.5477678775787354
+        },
+        "V_fp8_block__vsmooth_per_block": {
+          "mse": 0.00014477707736659795,
+          "rmse": 0.012032334659848768,
+          "cosine": 0.9998990739049449,
+          "seconds": 0.5746006965637207
+        },
+        "V_mxfp8__vsmooth_off": {
+          "mse": 0.0002468437305651605,
+          "rmse": 0.015711261265893343,
+          "cosine": 0.9998286079714714,
+          "seconds": 0.5988497734069824
+        },
+        "V_mxfp8__vsmooth_per_block": {
+          "mse": 0.0001449934352422133,
+          "rmse": 0.01204132198897668,
+          "cosine": 0.9998988876711029,
+          "seconds": 0.6508543491363525
+        }
+      }
+    },
+    {
+      "path": "/home/dongyun/dataset/v-dit/wan21_p1/layer_0/timestep_6.pt",
+      "load_s": 1.1694114208221436,
+      "ref_s": 0.15195035934448242,
+      "configs": {
+        "V_fp8_channel__vsmooth_off": {
+          "mse": 0.0008144626044668257,
+          "rmse": 0.028538791222944705,
+          "cosine": 0.9981776290645252,
+          "seconds": 0.5575120449066162
+        },
+        "V_fp8_channel__vsmooth_per_block": {
+          "mse": 0.0007805845234543085,
+          "rmse": 0.027938942776245285,
+          "cosine": 0.9982539220159973,
+          "seconds": 0.5704324245452881
+        },
+        "V_fp8_block__vsmooth_off": {
+          "mse": 0.0008150606881827116,
+          "rmse": 0.028549267734614695,
+          "cosine": 0.9981764297792077,
+          "seconds": 0.5478606224060059
+        },
+        "V_fp8_block__vsmooth_per_block": {
+          "mse": 0.0007806431967765093,
+          "rmse": 0.027939992784116987,
+          "cosine": 0.9982537925359867,
+          "seconds": 0.5748188495635986
+        },
+        "V_mxfp8__vsmooth_off": {
+          "mse": 0.0008169484790414572,
+          "rmse": 0.028582310596616523,
+          "cosine": 0.9981721590803053,
+          "seconds": 0.5984668731689453
+        },
+        "V_mxfp8__vsmooth_per_block": {
+          "mse": 0.0007802219479344785,
+          "rmse": 0.027932453310342765,
+          "cosine": 0.998254716001945,
+          "seconds": 0.6512908935546875
+        }
+      }
+    },
+    {
+      "path": "/home/dongyun/dataset/v-dit/wan21_p1/layer_0/timestep_9.pt",
+      "load_s": 1.1778216361999512,
+      "ref_s": 0.15134239196777344,
+      "configs": {
+        "V_fp8_channel__vsmooth_off": {
+          "mse": 0.0008143008453771472,
+          "rmse": 0.02853595706082323,
+          "cosine": 0.9983264281332153,
+          "seconds": 0.5554530620574951
+        },
+        "V_fp8_channel__vsmooth_per_block": {
+          "mse": 0.0007794198463670909,
+          "rmse": 0.027918091739355878,
+          "cosine": 0.9983982905556338,
+          "seconds": 0.5708470344543457
+        },
+        "V_fp8_block__vsmooth_off": {
+          "mse": 0.0008142756414599717,
+          "rmse": 0.02853551544058687,
+          "cosine": 0.9983264083984624,
+          "seconds": 0.5477454662322998
+        },
+        "V_fp8_block__vsmooth_per_block": {
+          "mse": 0.0007796439458616078,
+          "rmse": 0.02792210496831512,
+          "cosine": 0.9983979304103242,
+          "seconds": 0.5757532119750977
+        },
+        "V_mxfp8__vsmooth_off": {
+          "mse": 0.0008154087699949741,
+          "rmse": 0.02855536324396827,
+          "cosine": 0.9983240940805329,
+          "seconds": 0.5990517139434814
+        },
+        "V_mxfp8__vsmooth_per_block": {
+          "mse": 0.0007801253814250231,
+          "rmse": 0.027930724684924003,
+          "cosine": 0.9983970001953242,
+          "seconds": 0.6500935554504395
+        }
+      }
+    }
+  ],
+  "configs": {
+    "V_fp8_channel__vsmooth_off": {
+      "qk_quant": "mxfp8",
+      "v_quant": "fp8_channel",
+      "smoothing": "full",
+      "q_smooth_block_size": 256,
+      "q_kmeans_k": 32,
+      "q_kmeans_iters": 10,
+      "q_kmeans_seed": 0,
+      "fp8_block_size": 128,
+      "mxfp8_block_size": 32,
+      "v_fp8_block_size": 64,
+      "v_mxfp8_block_size": 64,
+      "p_quant": "auto",
+      "p_mx_block_n": 0,
+      "p_max_offset": 8,
+      "correction_dtype": "torch.float16",
+      "p_requant": true,
+      "p_requant_q_chunk": 512,
+      "p_requant_block_m": 64,
+      "p_requant_block_n": 64,
+      "v_smooth_mode": "off",
+      "v_smooth_block_size": 256,
+      "v_kmeans_k": 64,
+      "v_kmeans_iters": 10,
+      "v_kmeans_seed": 0
+    },
+    "V_fp8_channel__vsmooth_per_block": {
+      "qk_quant": "mxfp8",
+      "v_quant": "fp8_channel",
+      "smoothing": "full",
+      "q_smooth_block_size": 256,
+      "q_kmeans_k": 32,
+      "q_kmeans_iters": 10,
+      "q_kmeans_seed": 0,
+      "fp8_block_size": 128,
+      "mxfp8_block_size": 32,
+      "v_fp8_block_size": 64,
+      "v_mxfp8_block_size": 64,
+      "p_quant": "auto",
+      "p_mx_block_n": 0,
+      "p_max_offset": 8,
+      "correction_dtype": "torch.float16",
+      "p_requant": true,
+      "p_requant_q_chunk": 512,
+      "p_requant_block_m": 64,
+      "p_requant_block_n": 64,
+      "v_smooth_mode": "per_block",
+      "v_smooth_block_size": 256,
+      "v_kmeans_k": 64,
+      "v_kmeans_iters": 10,
+      "v_kmeans_seed": 0
+    },
+    "V_fp8_block__vsmooth_off": {
+      "qk_quant": "mxfp8",
+      "v_quant": "fp8_block",
+      "smoothing": "full",
+      "q_smooth_block_size": 256,
+      "q_kmeans_k": 32,
+      "q_kmeans_iters": 10,
+      "q_kmeans_seed": 0,
+      "fp8_block_size": 128,
+      "mxfp8_block_size": 32,
+      "v_fp8_block_size": 64,
+      "v_mxfp8_block_size": 64,
+      "p_quant": "auto",
+      "p_mx_block_n": 0,
+      "p_max_offset": 8,
+      "correction_dtype": "torch.float16",
+      "p_requant": true,
+      "p_requant_q_chunk": 512,
+      "p_requant_block_m": 64,
+      "p_requant_block_n": 64,
+      "v_smooth_mode": "off",
+      "v_smooth_block_size": 256,
+      "v_kmeans_k": 64,
+      "v_kmeans_iters": 10,
+      "v_kmeans_seed": 0
+    },
+    "V_fp8_block__vsmooth_per_block": {
+      "qk_quant": "mxfp8",
+      "v_quant": "fp8_block",
+      "smoothing": "full",
+      "q_smooth_block_size": 256,
+      "q_kmeans_k": 32,
+      "q_kmeans_iters": 10,
+      "q_kmeans_seed": 0,
+      "fp8_block_size": 128,
+      "mxfp8_block_size": 32,
+      "v_fp8_block_size": 64,
+      "v_mxfp8_block_size": 64,
+      "p_quant": "auto",
+      "p_mx_block_n": 0,
+      "p_max_offset": 8,
+      "correction_dtype": "torch.float16",
+      "p_requant": true,
+      "p_requant_q_chunk": 512,
+      "p_requant_block_m": 64,
+      "p_requant_block_n": 64,
+      "v_smooth_mode": "per_block",
+      "v_smooth_block_size": 256,
+      "v_kmeans_k": 64,
+      "v_kmeans_iters": 10,
+      "v_kmeans_seed": 0
+    },
+    "V_mxfp8__vsmooth_off": {
+      "qk_quant": "mxfp8",
+      "v_quant": "mxfp8",
+      "smoothing": "full",
+      "q_smooth_block_size": 256,
+      "q_kmeans_k": 32,
+      "q_kmeans_iters": 10,
+      "q_kmeans_seed": 0,
+      "fp8_block_size": 128,
+      "mxfp8_block_size": 32,
+      "v_fp8_block_size": 64,
+      "v_mxfp8_block_size": 64,
+      "p_quant": "auto",
+      "p_mx_block_n": 0,
+      "p_max_offset": 8,
+      "correction_dtype": "torch.float16",
+      "p_requant": true,
+      "p_requant_q_chunk": 512,
+      "p_requant_block_m": 64,
+      "p_requant_block_n": 64,
+      "v_smooth_mode": "off",
+      "v_smooth_block_size": 256,
+      "v_kmeans_k": 64,
+      "v_kmeans_iters": 10,
+      "v_kmeans_seed": 0
+    },
+    "V_mxfp8__vsmooth_per_block": {
+      "qk_quant": "mxfp8",
+      "v_quant": "mxfp8",
+      "smoothing": "full",
+      "q_smooth_block_size": 256,
+      "q_kmeans_k": 32,
+      "q_kmeans_iters": 10,
+      "q_kmeans_seed": 0,
+      "fp8_block_size": 128,
+      "mxfp8_block_size": 32,
+      "v_fp8_block_size": 64,
+      "v_mxfp8_block_size": 64,
+      "p_quant": "auto",
+      "p_mx_block_n": 0,
+      "p_max_offset": 8,
+      "correction_dtype": "torch.float16",
+      "p_requant": true,
+      "p_requant_q_chunk": 512,
+      "p_requant_block_m": 64,
+      "p_requant_block_n": 64,
+      "v_smooth_mode": "per_block",
+      "v_smooth_block_size": 256,
+      "v_kmeans_k": 64,
+      "v_kmeans_iters": 10,
+      "v_kmeans_seed": 0
+    }
+  },
+  "summary": {
+    "V_fp8_channel__vsmooth_off": {
+      "mse_mean": 0.0006899113698940104,
+      "rmse_mean": 0.025856627485833273,
+      "cosine_mean": 0.9985944016001266
+    },
+    "V_fp8_channel__vsmooth_per_block": {
+      "mse_mean": 0.0006421969834870348,
+      "rmse_mean": 0.024677804824454506,
+      "cosine_mean": 0.998668884474527
+    },
+    "V_fp8_block__vsmooth_off": {
+      "mse_mean": 0.0006895521607172365,
+      "rmse_mean": 0.02584204672215401,
+      "cosine_mean": 0.9985943083632592
+    },
+    "V_fp8_block__vsmooth_per_block": {
+      "mse_mean": 0.0006422217532720728,
+      "rmse_mean": 0.024678092735893758,
+      "cosine_mean": 0.9986689032383301
+    },
+    "V_mxfp8__vsmooth_off": {
+      "mse_mean": 0.0006906309281475842,
+      "rmse_mean": 0.02586370224013061,
+      "cosine_mean": 0.9985922820768094
+    },
+    "V_mxfp8__vsmooth_per_block": {
+      "mse_mean": 0.0006425430789628687,
+      "rmse_mean": 0.024684919283924873,
+      "cosine_mean": 0.998668293272928
+    }
+  }
+}

@@ -91,6 +91,81 @@ def _group_mean_q_kernel(
     tl.store(m_ptrs, mean)
 
 
+@triton.jit
+def _smooth_v_per_block_kernel(
+    v, v_out, v_alpha,
+    stride_vb, stride_vs, stride_vh, stride_vd,
+    stride_ob, stride_os, stride_oh, stride_od,
+    stride_ab, stride_an, stride_ah, stride_ad,
+    D: tl.constexpr, BLK_S: tl.constexpr,
+):
+    # Each program handles one (B, S-block, H) tile of size (BLK_S, D).
+    pid_b = tl.program_id(0)
+    pid_blk = tl.program_id(1)
+    pid_h = tl.program_id(2)
+    offs_s = pid_blk * BLK_S + tl.arange(0, BLK_S)
+    offs_d = tl.arange(0, D)
+    v_ptrs = (
+        v
+        + pid_b * stride_vb
+        + offs_s[:, None] * stride_vs
+        + pid_h * stride_vh
+        + offs_d[None, :] * stride_vd
+    )
+    x = tl.load(v_ptrs).to(tl.float32)
+    alpha = tl.sum(x, axis=0) / BLK_S  # (D,)
+    o_ptrs = (
+        v_out
+        + pid_b * stride_ob
+        + offs_s[:, None] * stride_os
+        + pid_h * stride_oh
+        + offs_d[None, :] * stride_od
+    )
+    tl.store(o_ptrs, (x - alpha[None, :]).to(v_out.dtype.element_ty))
+    a_ptrs = (
+        v_alpha
+        + pid_b * stride_ab
+        + pid_blk * stride_an
+        + pid_h * stride_ah
+        + offs_d * stride_ad
+    )
+    tl.store(a_ptrs, alpha)
+
+
+def smooth_v_per_block(v: torch.Tensor, block_s: int = 64) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Per-S-block V mean smoothing.
+
+    Splits ``v`` along S into blocks of size ``block_s`` and subtracts each
+    block's per-channel mean (a D-vector). Returns ``(v_centered, v_alpha)``
+    where ``v_alpha`` is FP32 with shape ``(B, S/block_s, H, D)``.
+
+    Inspired by Algorithm 2 in the SVG / SageAttention3 paper, this reduces
+    V's local dynamic range so FP8 quantization is more accurate. The
+    per-block mean is later folded back into the attention output via the C
+    accumulator (Triton kernel path) or by inline reconstitution (SDPA
+    path).
+    """
+    if v.ndim != 4 or not v.is_cuda:
+        raise ValueError(f"v must be 4-D NHD on CUDA; got {tuple(v.shape)} on {v.device}")
+    b, s, h, d = v.shape
+    if s % block_s != 0:
+        raise ValueError(f"S={s} must be divisible by block_s={block_s}")
+    if d not in (64, 128):
+        raise ValueError(f"D must be 64 or 128; got {d}")
+    v = v.contiguous()
+    n = s // block_s
+    out = torch.empty_like(v)
+    alpha = torch.empty((b, n, h, d), dtype=torch.float32, device=v.device)
+    _smooth_v_per_block_kernel[(b, n, h)](
+        v, out, alpha,
+        v.stride(0), v.stride(1), v.stride(2), v.stride(3),
+        out.stride(0), out.stride(1), out.stride(2), out.stride(3),
+        alpha.stride(0), alpha.stride(1), alpha.stride(2), alpha.stride(3),
+        D=d, BLK_S=block_s,
+    )
+    return out, alpha
+
+
 def group_mean_q(q: torch.Tensor, block_q: int = 256) -> Tuple[torch.Tensor, torch.Tensor]:
     """Triton Q centering by groups along S.
 

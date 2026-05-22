@@ -9,6 +9,22 @@ dependencies = [
     "torch~=2.12.0",
     "triton~=3.7.0",
     "tqdm>=4.66",
+    "flash-kmeans",
+    "diffusers>=0.38.0",
+    "transformers>=5.8.1",
+    "accelerate>=1.13.0",
+    "ftfy>=6.3.1",
+    "imageio>=2.37.3",
+    "imageio-ffmpeg>=0.6.0",
+    "sentencepiece>=0.2.1",
+    "protobuf>=7.35.0rc2",
+    "easydict>=1.13",
+    "opencv-python>=4.13.0.92",
+    "einops>=0.8.2",
+    "dashscope>=1.25.18",
+    "torchvision>=0.27.0",
+    "scikit-image>=0.26.0",
+    "av>=17.0.1",
 ]
 
 [project.optional-dependencies]
@@ -38,6 +54,7 @@ url = "https://download.pytorch.org/whl/test/cu132"
 
 [tool.uv.sources]
 torch = [{ index = "pytorch-test-cu132" }]
+flash-kmeans = { git = "https://github.com/svg-project/flash-kmeans" }
 
 [tool.ruff]
 line-length = 100

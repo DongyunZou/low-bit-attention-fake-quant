@@ -6,3 +6,20 @@ __pycache__/
 dist/
 build/
 *.egg-info/
+
+# Editor / agent configs
+.claude/
+.codex
+.humanize/
+
+# Bench artifacts: keep code + metrics.json + RESULTS, drop noisy logs
+bench/__pycache__/
+bench/*.log
+bench/eval_log*.txt
+# Old buggy padding videos (kept locally for reference but not pushed)
+bench/wan_videos_v1_buggy_padding/
+bench/wan_videos/*.log
+bench/wan_videos/*.log.*
+
+# Smoke / temp outputs from earlier iterations
+bench/_smoke*

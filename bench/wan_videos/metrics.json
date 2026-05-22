@@ -1,0 +1,49 @@
+{
+  "prompt": "A skateboarding scene in a dynamic street style, capturing a young skateboarder accelerating down a steep hill. The skateboarder, with a determined expression, is in mid-air, performing a kickflip maneuver, gaining speed rapidly. His hair flows behind him as he maneuvers the skateboard with precision. The background features blurred urban elements, including graffiti-covered walls, a few streetlights, and distant buildings. The sky is overcast, adding to the sense of speed and motion. The camera angle is from below, emphasizing the skateboarder\u2019s momentum and the steep incline of the hill.",
+  "seed": 42,
+  "size": "832*480",
+  "frame_num": 81,
+  "sample_steps": 50,
+  "results": {
+    "fp8_block_ksm": {
+      "mse_pixel": 462.1568984861375,
+      "rmse_pixel": 21.49783473948336,
+      "psnr_db": 21.482909208552307,
+      "ssim": 0.8033099899147189,
+      "ssim_min": 0.7600723330620278,
+      "T": 81,
+      "H": 480,
+      "W": 832
+    },
+    "fp8_block_qsm": {
+      "mse_pixel": 524.0698107610036,
+      "rmse_pixel": 22.892571082362146,
+      "psnr_db": 20.936912181421047,
+      "ssim": 0.7942611849955553,
+      "ssim_min": 0.7477467020508527,
+      "T": 81,
+      "H": 480,
+      "W": 832
+    },
+    "fp8_block_qvsm": {
+      "mse_pixel": 446.61175206462025,
+      "rmse_pixel": 21.13319076866104,
+      "psnr_db": 21.631502140320347,
+      "ssim": 0.8106052343680947,
+      "ssim_min": 0.76883508844057,
+      "T": 81,
+      "H": 480,
+      "W": 832
+    },
+    "fp8_block_full": {
+      "mse_pixel": 510.3249733318165,
+      "rmse_pixel": 22.590373465965907,
+      "psnr_db": 21.052335393222297,
+      "ssim": 0.7947360564754965,
+      "ssim_min": 0.7601378850103702,
+      "T": 81,
+      "H": 480,
+      "W": 832
+    }
+  }
+}

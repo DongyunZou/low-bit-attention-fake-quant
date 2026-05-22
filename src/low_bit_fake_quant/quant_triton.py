@@ -6,10 +6,10 @@ import torch
 import triton
 import triton.language as tl
 
-_FP8_E4M3_MAX = 448.0
-_AMAX_FLOOR = 1e-4
-_UE8M0_EXP_MIN = -127.0
-_UE8M0_EXP_MAX = 127.0
+_FP8_E4M3_MAX = tl.constexpr(448.0)
+_AMAX_FLOOR = tl.constexpr(1e-4)
+_UE8M0_EXP_MIN = tl.constexpr(-127.0)
+_UE8M0_EXP_MAX = tl.constexpr(127.0)
 
 
 def _check_nhd(t: torch.Tensor, *, name: str = "tensor") -> tuple[int, int, int, int]:
@@ -224,12 +224,15 @@ def _mxfp8_qk_quant_kernel(
     stride_sb, stride_ss, stride_sh, stride_sd,
     stride_db, stride_ds, stride_dh, stride_dd,
     stride_scb, stride_scs, stride_sch, stride_scd,
-    BLOCK_D: tl.constexpr,
+    H: tl.constexpr, BLOCK_D: tl.constexpr,
 ):
-    pid_b = tl.program_id(0)
-    pid_s = tl.program_id(1)
-    pid_h = tl.program_id(2)
-    pid_db = tl.program_id(3)
+    # Grid layout (S, B, H*D_blocks). S goes on axis 0 because real wan21
+    # workloads have S=69120 which exceeds CUDA's gridY/gridZ limit of 65535.
+    pid_s = tl.program_id(0)
+    pid_b = tl.program_id(1)
+    pid_hdb = tl.program_id(2)
+    pid_h = pid_hdb % H
+    pid_db = pid_hdb // H
     offs_d = pid_db * BLOCK_D + tl.arange(0, BLOCK_D)
     x = tl.load(
         src + pid_b * stride_sb + pid_s * stride_ss + pid_h * stride_sh + offs_d * stride_sd
@@ -256,13 +259,14 @@ def mxfp8_qk_quant(t: torch.Tensor, block_d: int = 32) -> Tuple[torch.Tensor, to
         raise ValueError(f"D={d} must be divisible by block_d={block_d}")
     t = t.contiguous()
     out = torch.empty_like(t, dtype=torch.float8_e4m3fn)
-    scale = torch.empty((b, s, h, d // block_d), dtype=torch.float32, device=t.device)
-    _mxfp8_qk_quant_kernel[(b, s, h, d // block_d)](
+    d_blocks = d // block_d
+    scale = torch.empty((b, s, h, d_blocks), dtype=torch.float32, device=t.device)
+    _mxfp8_qk_quant_kernel[(s, b, h * d_blocks)](
         t, out, scale,
         t.stride(0), t.stride(1), t.stride(2), t.stride(3),
         out.stride(0), out.stride(1), out.stride(2), out.stride(3),
         scale.stride(0), scale.stride(1), scale.stride(2), scale.stride(3),
-        BLOCK_D=block_d,
+        H=h, BLOCK_D=block_d,
     )
     return out, scale
 
@@ -273,12 +277,13 @@ def _mxfp8_qk_dequant_kernel(
     stride_sb, stride_ss, stride_sh, stride_sd,
     stride_scb, stride_scs, stride_sch, stride_scd,
     stride_db, stride_ds, stride_dh, stride_dd,
-    BLOCK_D: tl.constexpr,
+    H: tl.constexpr, BLOCK_D: tl.constexpr,
 ):
-    pid_b = tl.program_id(0)
-    pid_s = tl.program_id(1)
-    pid_h = tl.program_id(2)
-    pid_db = tl.program_id(3)
+    pid_s = tl.program_id(0)
+    pid_b = tl.program_id(1)
+    pid_hdb = tl.program_id(2)
+    pid_h = pid_hdb % H
+    pid_db = pid_hdb // H
     offs_d = pid_db * BLOCK_D + tl.arange(0, BLOCK_D)
     sc = tl.load(
         scale + pid_b * stride_scb + pid_s * stride_scs + pid_h * stride_sch + pid_db * stride_scd
@@ -300,15 +305,16 @@ def mxfp8_qk_dequant(
     dtype: torch.dtype = torch.float32,
 ) -> torch.Tensor:
     b, s, h, d = _check_nhd(fp8, name="fp8")
-    if tuple(scale.shape) != (b, s, h, d // block_d):
-        raise ValueError(f"scale must have shape {(b, s, h, d // block_d)}")
+    d_blocks = d // block_d
+    if tuple(scale.shape) != (b, s, h, d_blocks):
+        raise ValueError(f"scale must have shape {(b, s, h, d_blocks)}")
     out = torch.empty((b, s, h, d), dtype=dtype, device=fp8.device)
-    _mxfp8_qk_dequant_kernel[(b, s, h, d // block_d)](
+    _mxfp8_qk_dequant_kernel[(s, b, h * d_blocks)](
         fp8, scale, out,
         fp8.stride(0), fp8.stride(1), fp8.stride(2), fp8.stride(3),
         scale.stride(0), scale.stride(1), scale.stride(2), scale.stride(3),
         out.stride(0), out.stride(1), out.stride(2), out.stride(3),
-        BLOCK_D=block_d,
+        H=h, BLOCK_D=block_d,
     )
     return out
 
@@ -319,12 +325,13 @@ def _mxfp8_v_quant_kernel(
     stride_sb, stride_ss, stride_sh, stride_sd,
     stride_db, stride_ds, stride_dh, stride_dd,
     stride_scb, stride_scs, stride_sch, stride_scd,
-    BLOCK_S: tl.constexpr,
+    H: tl.constexpr, BLOCK_S: tl.constexpr,
 ):
     pid_b = tl.program_id(0)
     pid_sb = tl.program_id(1)
-    pid_h = tl.program_id(2)
-    pid_d = tl.program_id(3)
+    pid_hd = tl.program_id(2)
+    pid_h = pid_hd % H
+    pid_d = pid_hd // H
     offs_s = pid_sb * BLOCK_S + tl.arange(0, BLOCK_S)
     x = tl.load(
         src + pid_b * stride_sb + offs_s * stride_ss + pid_h * stride_sh + pid_d * stride_sd
@@ -352,12 +359,12 @@ def mxfp8_v_quant(t: torch.Tensor, block_s: int = 32) -> Tuple[torch.Tensor, tor
     t = t.contiguous()
     out = torch.empty_like(t, dtype=torch.float8_e4m3fn)
     scale = torch.empty((b, s // block_s, h, d), dtype=torch.float32, device=t.device)
-    _mxfp8_v_quant_kernel[(b, s // block_s, h, d)](
+    _mxfp8_v_quant_kernel[(b, s // block_s, h * d)](
         t, out, scale,
         t.stride(0), t.stride(1), t.stride(2), t.stride(3),
         out.stride(0), out.stride(1), out.stride(2), out.stride(3),
         scale.stride(0), scale.stride(1), scale.stride(2), scale.stride(3),
-        BLOCK_S=block_s,
+        H=h, BLOCK_S=block_s,
     )
     return out, scale
 
@@ -368,12 +375,13 @@ def _mxfp8_v_dequant_kernel(
     stride_sb, stride_ss, stride_sh, stride_sd,
     stride_scb, stride_scs, stride_sch, stride_scd,
     stride_db, stride_ds, stride_dh, stride_dd,
-    BLOCK_S: tl.constexpr,
+    H: tl.constexpr, BLOCK_S: tl.constexpr,
 ):
     pid_b = tl.program_id(0)
     pid_sb = tl.program_id(1)
-    pid_h = tl.program_id(2)
-    pid_d = tl.program_id(3)
+    pid_hd = tl.program_id(2)
+    pid_h = pid_hd % H
+    pid_d = pid_hd // H
     offs_s = pid_sb * BLOCK_S + tl.arange(0, BLOCK_S)
     sc = tl.load(
         scale + pid_b * stride_scb + pid_sb * stride_scs + pid_h * stride_sch + pid_d * stride_scd
@@ -398,11 +406,11 @@ def mxfp8_v_dequant(
     if tuple(scale.shape) != (b, s // block_s, h, d):
         raise ValueError(f"scale must have shape {(b, s // block_s, h, d)}")
     out = torch.empty((b, s, h, d), dtype=dtype, device=fp8.device)
-    _mxfp8_v_dequant_kernel[(b, s // block_s, h, d)](
+    _mxfp8_v_dequant_kernel[(b, s // block_s, h * d)](
         fp8, scale, out,
         fp8.stride(0), fp8.stride(1), fp8.stride(2), fp8.stride(3),
         scale.stride(0), scale.stride(1), scale.stride(2), scale.stride(3),
         out.stride(0), out.stride(1), out.stride(2), out.stride(3),
-        BLOCK_S=block_s,
+        H=h, BLOCK_S=block_s,
     )
     return out
