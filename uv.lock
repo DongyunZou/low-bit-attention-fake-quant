@@ -611,6 +611,7 @@ dependencies = [
 [package.optional-dependencies]
 bench = [
     { name = "einops" },
+    { name = "lpips" },
 ]
 dev = [
     { name = "pytest" },
@@ -630,6 +631,7 @@ requires-dist = [
     { name = "ftfy", specifier = ">=6.3.1" },
     { name = "imageio", specifier = ">=2.37.3" },
     { name = "imageio-ffmpeg", specifier = ">=0.6.0" },
+    { name = "lpips", marker = "extra == 'bench'", specifier = ">=0.1.4" },
     { name = "numpy", specifier = ">=2.0" },
     { name = "opencv-python", specifier = ">=4.13.0.92" },
     { name = "protobuf", specifier = ">=7.35.0rc2" },
@@ -644,6 +646,23 @@ requires-dist = [
     { name = "triton", specifier = "~=3.7.0" },
 ]
 provides-extras = ["dev", "bench"]
+
+[[package]]
+name = "lpips"
+version = "0.1.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "scipy" },
+    { name = "torch" },
+    { name = "torchvision", version = "0.27.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'darwin'" },
+    { name = "torchvision", version = "0.27.0+cu132", source = { registry = "https://download.pytorch.org/whl/test/cu132" }, marker = "sys_platform != 'darwin'" },
+    { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e8/2d/4b8148d32f5bd461eb7d5daa54fcc998f86eaa709a57f4ef6aa4c62f024f/lpips-0.1.4.tar.gz", hash = "sha256:3846331df6c69688aec3d300a5eeef6c529435bc8460bd58201c3d62e56188fa", size = 18029, upload-time = "2021-08-25T22:10:32.803Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9b/13/1df50c7925d9d2746702719f40e864f51ed66f307b20ad32392f1ad2bb87/lpips-0.1.4-py3-none-any.whl", hash = "sha256:fd537af5828b69d2e6ffc0a397bd506dbc28ca183543617690844c08e102ec5e", size = 53763, upload-time = "2021-08-25T22:10:31.257Z" },
+]
 
 [[package]]
 name = "markdown-it-py"

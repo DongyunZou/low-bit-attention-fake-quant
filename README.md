@@ -29,6 +29,53 @@ where `cfg` is a `QuantConfig`.
 - `bench/sweep_v_quant.py`: focused V quant and V smoothing sweep.
 - `bench/sweep_kmeans_k.py`: Q/V k-means cluster count sweep.
 - `bench/gen_wan_videos.py`: end-to-end Wan video generation comparison.
+- `bench/gen_wan_e2e_pquant.py`: SDPA plus five P-quant end-to-end videos.
+- `bench/eval_video_dirs.py`: PSNR/SSIM/LPIPS for generated videos.
+
+## End-to-End Wan Videos
+
+Prepare Wan2.1 and the T2V-14B checkpoint:
+
+```bash
+git clone https://github.com/Wan-Video/Wan2.1.git /path/to/Wan2.1
+uv sync --extra dev --extra bench
+
+# Hugging Face
+uv run hf download Wan-AI/Wan2.1-T2V-14B \
+  --local-dir /path/to/Wan2.1-T2V-14B
+```
+
+The same checkpoint is also available on ModelScope as
+`Wan-AI/Wan2.1-T2V-14B` if Hugging Face is not reachable.
+
+Generate one SDPA reference and five fake-quant videos with the same prompt and
+seed:
+
+```bash
+uv run python bench/gen_wan_e2e_pquant.py \
+  --wan-root /path/to/Wan2.1 \
+  --ckpt-dir /path/to/Wan2.1-T2V-14B \
+  --out-dir bench/wan_e2e_pquant \
+  --prompt "A skateboarding scene in a dynamic street style..." \
+  --seed 42 \
+  --size 832*480 \
+  --frame-num 81 \
+  --sample-steps 50 \
+  --t5-cpu \
+  --offload-model
+```
+
+Compare every fake-quant video in the output directory to `sdpa.mp4`:
+
+```bash
+uv run python bench/eval_video_dirs.py \
+  --pred-dir bench/wan_e2e_pquant \
+  --ref-video bench/wan_e2e_pquant/sdpa.mp4 \
+  --output-json bench/wan_e2e_pquant/metrics.json
+```
+
+For 14B generation, use a mostly free 80GB GPU. If another process is already
+using tens of GB of VRAM, model load can OOM before generation starts.
 
 ## Wan Layer-0 Accuracy Snapshot
 
