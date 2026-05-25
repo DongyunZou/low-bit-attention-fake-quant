@@ -138,10 +138,16 @@ def _fake_quant_attn_fwd_kernel(
             m_ij = tl.maximum(m_i, tl.max(s_ij, 1))
             alpha = tl.exp2((m_i - m_ij) * LOG2E)
 
-        if P_QUANT_KIND == 2:
-            z = (s_ij - m_ij[:, None]) * LOG2E
-        else:
+        if P_QUANT_KIND == 0:
+            # Fixed-scale P quant: model the production FP8 attention path
+            # where P is multiplied by 2**p_max_offset (normally 256) before
+            # the element-wise e4m3 cast.
             z = (s_ij - m_ij[:, None]) * LOG2E + p_max_offset
+        else:
+            # MX and dynamic P quant compute their own per-row/block scale, so
+            # a fixed offset would be redundant and can perturb intermediate
+            # range without changing the intended normalized softmax.
+            z = (s_ij - m_ij[:, None]) * LOG2E
         p = tl.exp2(z)
         p = tl.where(col_mask[None, :], p, 0.0)
 

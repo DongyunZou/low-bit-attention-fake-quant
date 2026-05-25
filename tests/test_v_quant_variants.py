@@ -108,6 +108,28 @@ def test_p_quant_auto_picks_mx_for_mxfp8_v():
     assert torch.isfinite(o).all()
 
 
+def test_mx_p_quant_ignores_fixed_p_max_offset():
+    """MX P quant uses its own dynamic pow2 scale, so fixed p_max_offset should
+    not affect the result."""
+    q, k, v = _make_qkv(b=1, s=256, h=2, d=64, seed=11)
+    base = dict(
+        qk_quant="mxfp8",
+        v_quant="mxfp8",
+        smoothing="off",
+        q_kmeans_k=None,
+        v_smooth_mode="off",
+        v_mxfp8_block_size=64,
+        p_quant="mx",
+        p_requant=True,
+        p_requant_block_m=64,
+        p_requant_block_n=64,
+    )
+    o0 = fake_quant_attention(q, k, v, QuantConfig(**base, p_max_offset=0))
+    o8 = fake_quant_attention(q, k, v, QuantConfig(**base, p_max_offset=8))
+    max_abs = (o0.float() - o8.float()).abs().max().item()
+    assert max_abs == 0.0
+
+
 def test_p_quant_elementwise_for_fp8_block_v():
     """V=fp8_block uses P=elementwise; per-K-block s_V should be applied inside the loop."""
     q, k, v = _make_qkv(b=1, s=256, h=2, d=64)
