@@ -28,7 +28,8 @@ Supported quant strategies
 - ``cfg.qk_quant = "mxfp8"``    — MXFP8 power-of-two scale along D, one
   scale per ``(B, S, H, D/block_d)``.
 - ``cfg.v_quant = "fp8_channel"`` — FP32-scale FP8 e4m3fn per ``(B, H, D)``.
-- ``cfg.v_quant = "mxfp8_s"``     — MXFP8 power-of-two scale along S.
+- ``cfg.v_quant = "fp8_block"``   — FP32-scale FP8 e4m3fn per S-block.
+- ``cfg.v_quant = "mxfp8"``       — MXFP8 power-of-two scale along S.
 - ``cfg.smoothing = "off" | "k_only" | "full"`` — SageAttention-style
   K-mean smoothing, optionally with grouped Q centering.
 - ``cfg.q_kmeans_k = 32 | 64 | None`` — Q-token reorder by k-means,
@@ -318,17 +319,60 @@ def _expand_v_scale_full(
     """Return a per-(B,S,H,D) FP32 scale tensor for V regardless of v_quant kind.
 
     ``fp8_channel``: one scale per (B,H,D), broadcast across S.
-    ``mxfp8_s``:     one scale per (B, S/block_s, H, D), broadcast across each
+    ``fp8_block``:   one scale per (B, S/block_s, H), broadcast over D and
+                     each S-block.
+    ``mxfp8``:       one scale per (B, S/block_s, H, D), broadcast across each
                      S-block of length block_s.
     """
     if v_meta["kind"] == "fp8_channel":
         # (B, H, D) → (B, 1, H, D) → (B, S, H, D)
         return v_scale.to(dtype).view(b, 1, h, d).expand(b, s, h, d).contiguous()
-    if v_meta["kind"] == "mxfp8_s":
+    if v_meta["kind"] == "fp8_block":
+        block_s = v_meta["block_s"]
+        return (
+            v_scale.to(dtype)
+            .unsqueeze(-1)
+            .repeat_interleave(block_s, dim=1)
+            .expand(b, s, h, d)
+            .contiguous()
+        )
+    if v_meta["kind"] == "mxfp8":
         block_s = v_meta["block_s"]
         # (B, S/block_s, H, D) → (B, S, H, D) by repeating each row block_s times.
         return v_scale.to(dtype).repeat_interleave(block_s, dim=1).contiguous()
     raise ValueError(f"bad v_meta: {v_meta!r}")
+
+
+def _estimate_rowmax_from_qm_k(
+    qm: torch.Tensor,
+    k_work: torch.Tensor,
+    *,
+    block_q: int,
+    sm_scale: float,
+    chunk_n: int = 4096,
+) -> torch.Tensor:
+    """Estimate per-row softmax max with ``max_n(qm[group] @ K_smooth[n])``.
+
+    Returns ``(B, H, S)`` in scaled-score units, matching the score tensor
+    passed to the Triton P-requant kernel. The estimate is shared by all rows
+    in the same Q-smoothing group and repeated to per-row shape because the
+    kernel accepts a generic per-row rowmax tensor.
+    """
+    b, n_groups, h, d = qm.shape
+    _, s, hk, dk = k_work.shape
+    if h != hk or d != dk:
+        raise ValueError(f"qm/k shape mismatch: qm={tuple(qm.shape)} k={tuple(k_work.shape)}")
+    if s % block_q != 0 or s // block_q != n_groups:
+        raise ValueError(f"qm groups {n_groups} do not match S={s}, block_q={block_q}")
+
+    qm_bhgd = qm.permute(0, 2, 1, 3).contiguous().float()
+    k_bhsd = k_work.permute(0, 2, 1, 3).contiguous().float()
+    rowmax_g = torch.full((b, h, n_groups), -float("inf"), dtype=torch.float32, device=qm.device)
+    for n0 in range(0, s, chunk_n):
+        n1 = min(n0 + chunk_n, s)
+        scores = torch.matmul(qm_bhgd, k_bhsd[:, :, n0:n1, :].transpose(-2, -1))
+        rowmax_g = torch.maximum(rowmax_g, scores.amax(dim=-1))
+    return (rowmax_g * float(sm_scale)).repeat_interleave(block_q, dim=2).contiguous()
 
 
 def _fake_quant_attention_p_requant(
@@ -347,7 +391,7 @@ def _fake_quant_attention_p_requant(
     :mod:`attention_triton`, which fuses online softmax + P FP8 cast +
     per-channel V scale into a single pass over K.
 
-    For ``v_quant=mxfp8_s`` we pre-dequantize V (so the per-K-block scale is
+    For ``v_quant=mxfp8`` we pre-dequantize V (so the per-K-block scale is
     absorbed) and reuse the Triton kernel with a unit v_scale, since the
     only remaining cast error inside the kernel is the P FP8 cast.
     """
@@ -417,6 +461,21 @@ def _fake_quant_attention_p_requant(
         k_smooth_arg = k_work.to(torch.bfloat16).permute(0, 2, 1, 3).contiguous()
         qm_arg = qm.to(torch.float32).contiguous()              # (B,n_g,H,D) fp32
 
+    rowmax_est_arg: Optional[torch.Tensor] = None
+    if cfg.rowmax_mode == "online":
+        pass
+    elif cfg.rowmax_mode == "qm_k":
+        if qm is None:
+            raise ValueError("rowmax_mode='qm_k' requires smoothing='full' so qm exists")
+        rowmax_est_arg = _estimate_rowmax_from_qm_k(
+            qm,
+            k_work,
+            block_q=cfg.q_smooth_block_size,
+            sm_scale=sm_scale,
+        )
+    else:
+        raise ValueError(f"unsupported rowmax_mode: {cfg.rowmax_mode!r}")
+
     # Choose P quant mode: auto pairs with V quant per the spec.
     p_mode = cfg.p_quant
     if p_mode == "auto":
@@ -438,6 +497,7 @@ def _fake_quant_attention_p_requant(
         v_block_size=v_block_size_arg,
         p_quant_mode=p_mode,
         p_mx_block_n=p_mx_block_n,
+        rowmax_est_bhs=rowmax_est_arg,
     )
     return o_bhsd.permute(0, 2, 1, 3).contiguous().to(out_dtype)
 

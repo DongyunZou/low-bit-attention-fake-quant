@@ -24,7 +24,8 @@ VSmoothMode = Literal["off", "per_block"]
 # P quantization mode. ``auto`` picks based on ``v_quant``:
 #   fp8_channel, fp8_block → ``elementwise`` (current default behavior)
 #   mxfp8                   → ``mx`` (per-K-block UE8M0 on P)
-PQuant = Literal["auto", "elementwise", "mx"]
+PQuant = Literal["auto", "elementwise", "mx", "dynamic"]
+RowmaxMode = Literal["online", "qm_k"]
 
 
 @dataclass(frozen=True)
@@ -53,6 +54,11 @@ class QuantConfig:
     v_mxfp8_block_size: int = 64      # V mxfp8: per (B, S/blk, H, D)
     # P quant mode (auto/elementwise/mx). ``auto`` picks per V quant.
     p_quant: PQuant = "auto"
+    # Softmax row-max mode for the Triton P-requant path.
+    # ``online`` computes the exact online row max in the attention kernel.
+    # ``qm_k`` uses max(qm @ K_smooth.T) as a per-Q-row estimate; this is only
+    # valid with ``smoothing="full"`` where qm exists.
+    rowmax_mode: RowmaxMode = "online"
     # P MX block size along N (kv) when p_quant=mx. Defaults to V's mxfp8
     # block size when not specified (so they align).
     p_mx_block_n: int = 0   # 0 → match v_mxfp8_block_size

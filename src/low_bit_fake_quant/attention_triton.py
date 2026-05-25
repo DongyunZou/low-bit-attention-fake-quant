@@ -36,7 +36,7 @@ _UE8M0_EXP_MAX = 127.0
 
 @triton.jit
 def _fake_quant_attn_fwd_kernel(
-    Q, K, V, V_SCALE, V_ALPHA, K_SMOOTH, QM, V_BLOCK_SCALE, O,
+    Q, K, V, V_SCALE, V_ALPHA, K_SMOOTH, QM, V_BLOCK_SCALE, ROWMAX_EST, O,
     stride_qz, stride_qh, stride_qm, stride_qk,
     stride_kz, stride_kh, stride_kn, stride_kk,
     stride_vz, stride_vh, stride_vn, stride_vk,
@@ -45,6 +45,7 @@ def _fake_quant_attn_fwd_kernel(
     stride_ksz, stride_ksh, stride_ksn, stride_ksk,
     stride_qmz, stride_qmg, stride_qmh, stride_qmd,
     stride_vbsz, stride_vbsn, stride_vbsh,
+    stride_rmz, stride_rmh, stride_rmm,
     stride_oz, stride_oh, stride_om, stride_ok,
     H: tl.constexpr,
     M: tl.constexpr,
@@ -60,8 +61,9 @@ def _fake_quant_attn_fwd_kernel(
     Q_SMOOTH_BLOCK: tl.constexpr,
     V_QUANT_KIND: tl.constexpr,        # 0=channel, 1=fp8_block, 2=mxfp8
     V_BLOCK_QUANT_SIZE: tl.constexpr,  # only used if V_QUANT_KIND==1
-    P_QUANT_KIND: tl.constexpr,        # 0=elementwise, 1=mx
+    P_QUANT_KIND: tl.constexpr,        # 0=elementwise, 1=mx, 2=dynamic
     P_MX_BLOCK_N: tl.constexpr,        # MX P block along N (only if P=mx)
+    HAS_ROWMAX_EST: tl.constexpr,
 ):
     LOG2E: tl.constexpr = 1.4426950408889634
     FP8_MAX: tl.constexpr = 448.0
@@ -74,6 +76,7 @@ def _fake_quant_attn_fwd_kernel(
     k_off = off_z * stride_kz + off_h * stride_kh
     v_off = off_z * stride_vz + off_h * stride_vh
     o_off = off_z * stride_oz + off_h * stride_oh
+    rm_off = off_z * stride_rmz + off_h * stride_rmh
     vs_off = off_z * stride_vsz + off_h * stride_vsh
     va_off = off_z * stride_vaz + off_h * stride_vah
     ks_off = off_z * stride_ksz + off_h * stride_ksh
@@ -97,7 +100,13 @@ def _fake_quant_attn_fwd_kernel(
         qm_ptrs = QM + qm_off + qm_group * stride_qmg + offs_d * stride_qmd
         qm_vec = tl.load(qm_ptrs)  # (D,) FP32
 
-    m_i = tl.full([BLOCK_M], float("-inf"), dtype=tl.float32)
+    if HAS_ROWMAX_EST:
+        rm_ptrs = ROWMAX_EST + rm_off + offs_m * stride_rmm
+        rowmax_est = tl.load(rm_ptrs, mask=offs_m < M, other=0.0).to(tl.float32)
+        m_i = rowmax_est
+    else:
+        rowmax_est = tl.zeros([BLOCK_M], dtype=tl.float32)
+        m_i = tl.full([BLOCK_M], float("-inf"), dtype=tl.float32)
     l_i = tl.zeros([BLOCK_M], dtype=tl.float32)
     acc = tl.zeros([BLOCK_M, D], dtype=tl.float32)
     c_acc = tl.zeros([BLOCK_M, D], dtype=tl.float32)  # V-smoothing correction
@@ -122,9 +131,17 @@ def _fake_quant_attn_fwd_kernel(
 
         s_ij = tl.where(col_mask[None, :], s_ij, float("-inf"))
 
-        m_ij = tl.maximum(m_i, tl.max(s_ij, 1))
-        alpha = tl.exp2((m_i - m_ij) * LOG2E)
-        z = (s_ij - m_ij[:, None]) * LOG2E + p_max_offset
+        if HAS_ROWMAX_EST:
+            m_ij = rowmax_est
+            alpha = tl.full([BLOCK_M], 1.0, dtype=tl.float32)
+        else:
+            m_ij = tl.maximum(m_i, tl.max(s_ij, 1))
+            alpha = tl.exp2((m_i - m_ij) * LOG2E)
+
+        if P_QUANT_KIND == 2:
+            z = (s_ij - m_ij[:, None]) * LOG2E
+        else:
+            z = (s_ij - m_ij[:, None]) * LOG2E + p_max_offset
         p = tl.exp2(z)
         p = tl.where(col_mask[None, :], p, 0.0)
 
@@ -134,7 +151,7 @@ def _fake_quant_attn_fwd_kernel(
         if P_QUANT_KIND == 0:
             # Element-wise e4m3fn cast (p_max_offset already keeps p in range).
             p_bf16 = p.to(tl.float8e4nv).to(tl.bfloat16)
-        else:
+        elif P_QUANT_KIND == 1:
             # MX: per (M-row, N-sub-block of P_MX_BLOCK_N) UE8M0 scale on P,
             # then cast e4m3. The mma is conceptually MXFP8 × MXFP8.
             # Compute amax per (row, P_MX_BLOCK_N sub-block). Here we use
@@ -145,6 +162,19 @@ def _fake_quant_attn_fwd_kernel(
             log2_scale = tl.ceil(tl.log2(row_amax / FP8_MAX))
             log2_scale = tl.minimum(tl.maximum(log2_scale, -127.0), 127.0)
             s_P = tl.exp2(log2_scale)  # (BLOCK_M,)
+            p_scaled = p / s_P[:, None]
+            p_scaled = tl.minimum(tl.maximum(p_scaled, -FP8_MAX), FP8_MAX)
+            p_fp8 = p_scaled.to(tl.float8e4nv).to(tl.float32)
+            p_recovered = p_fp8 * s_P[:, None]
+            p_bf16 = p_recovered.to(tl.bfloat16)
+        else:
+            # Dynamic FP32 P scale per row and K block. Unlike p_max_offset,
+            # this tracks the local P range, avoiding both zero-heavy rows and
+            # saturation when the supplied rowmax estimate is below the true
+            # row maximum. row_sum still uses the pre-quantized p.
+            row_amax = tl.max(tl.abs(p), 1)
+            row_amax = tl.maximum(row_amax, 1e-12)
+            s_P = row_amax / FP8_MAX
             p_scaled = p / s_P[:, None]
             p_scaled = tl.minimum(tl.maximum(p_scaled, -FP8_MAX), FP8_MAX)
             p_fp8 = p_scaled.to(tl.float8e4nv).to(tl.float32)
@@ -213,6 +243,7 @@ def fake_quant_attention_triton(
     v_block_size: int = 0,
     p_quant_mode: str = "elementwise",
     p_mx_block_n: int = 0,
+    rowmax_est_bhs: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """FA2-style fake-quant attention kernel.
 
@@ -227,6 +258,7 @@ def fake_quant_attention_triton(
       * ``elementwise`` (default): plain e4m3fn cast on P.
       * ``mx``: per-K-block UE8M0 scale on P before the e4m3 cast. Match
         ``p_mx_block_n`` with V's mxfp8 block size.
+      * ``dynamic``: per-row, per-K-block FP32 scale on P before the e4m3 cast.
     """
     B, H, S, D = q_bhsd.shape
     assert k_bhsd.shape == (B, H, S, D)
@@ -288,6 +320,16 @@ def fake_quant_attention_triton(
         ks_strides = (0, 0, 0, 0)
         qm_strides = (0, 0, 0, 0)
 
+    has_rowmax_est = rowmax_est_bhs is not None
+    if has_rowmax_est:
+        assert rowmax_est_bhs.shape == (B, H, S)
+        assert rowmax_est_bhs.dtype == torch.float32
+        rowmax_est_bhs = rowmax_est_bhs.contiguous()
+        rm_strides = rowmax_est_bhs.stride()
+    else:
+        rowmax_est_bhs = torch.empty(1, dtype=torch.float32, device=q_bhsd.device)
+        rm_strides = (0, 0, 0)
+
     # V quant kind
     if v_block_scale_bsh is not None:
         v_quant_kind = 1  # fp8_block
@@ -329,6 +371,9 @@ def fake_quant_attention_triton(
                 "sub-block scaling within a K block is not implemented"
             )
         p_mx_block_n_arg = p_mx_block_n
+    elif p_quant_mode == "dynamic":
+        p_quant_kind = 2
+        p_mx_block_n_arg = block_n
     else:
         raise ValueError(f"unknown p_quant_mode: {p_quant_mode!r}")
 
@@ -336,7 +381,7 @@ def fake_quant_attention_triton(
     grid = (triton.cdiv(S, block_m), B * H)
     _fake_quant_attn_fwd_kernel[grid](
         q_bhsd, k_bhsd, v_bhsd_bf16, v_scale_bhd, v_alpha,
-        k_smooth_bhsd, qm_bhgd, v_block_scale_bsh, o,
+        k_smooth_bhsd, qm_bhgd, v_block_scale_bsh, rowmax_est_bhs, o,
         q_bhsd.stride(0), q_bhsd.stride(1), q_bhsd.stride(2), q_bhsd.stride(3),
         k_bhsd.stride(0), k_bhsd.stride(1), k_bhsd.stride(2), k_bhsd.stride(3),
         v_bhsd_bf16.stride(0), v_bhsd_bf16.stride(1), v_bhsd_bf16.stride(2), v_bhsd_bf16.stride(3),
@@ -345,6 +390,7 @@ def fake_quant_attention_triton(
         ks_strides[0], ks_strides[1], ks_strides[2], ks_strides[3],
         qm_strides[0], qm_strides[1], qm_strides[2], qm_strides[3],
         vbs_strides[0], vbs_strides[1], vbs_strides[2],
+        rm_strides[0], rm_strides[1], rm_strides[2],
         o.stride(0), o.stride(1), o.stride(2), o.stride(3),
         H=H, M=S, N=S,
         sm_scale=sm_scale,
@@ -359,6 +405,7 @@ def fake_quant_attention_triton(
         V_BLOCK_QUANT_SIZE=v_block_size,
         P_QUANT_KIND=p_quant_kind,
         P_MX_BLOCK_N=p_mx_block_n_arg,
+        HAS_ROWMAX_EST=has_rowmax_est,
         num_warps=4,
         num_stages=2,
     )

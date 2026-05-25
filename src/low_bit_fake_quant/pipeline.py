@@ -46,7 +46,7 @@ def prepare_qkv(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, cfg: QuantCon
     v_work = v.contiguous()
 
     kmeans = None
-    if cfg.smoothing == "full" and cfg.q_kmeans_k is not None:
+    if cfg.q_kmeans_k is not None:
         kmeans = q_kmeans_reorder(
             q_work,
             n_clusters=cfg.q_kmeans_k,
@@ -80,8 +80,10 @@ def prepare_qkv(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, cfg: QuantCon
 
     if cfg.v_quant == "fp8_channel":
         v_quant, v_scale = fp8_per_channel_quant(v_work)
-    elif cfg.v_quant == "mxfp8_s":
-        v_quant, v_scale = mxfp8_v_quant(v_work, block_s=cfg.mxfp8_block_size)
+    elif cfg.v_quant == "fp8_block":
+        v_quant, v_scale = fp8_block_quant(v_work, block_s=cfg.v_fp8_block_size)
+    elif cfg.v_quant == "mxfp8":
+        v_quant, v_scale = mxfp8_v_quant(v_work, block_s=cfg.v_mxfp8_block_size)
     else:
         raise ValueError(f"unsupported v_quant: {cfg.v_quant!r}")
 

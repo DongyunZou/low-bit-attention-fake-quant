@@ -50,7 +50,7 @@ def build_matrix() -> dict[str, QuantConfig]:
     """All quant configurations covered by the goal + V smoothing extension.
 
     QK quant     : fp8_block, mxfp8
-    V  quant     : fp8_channel, mxfp8_s
+    V  quant     : fp8_channel, fp8_block, mxfp8
     Smoothing    : off, k_only, full   (Q/K SageAttention smoothing)
     Q kmeans     : off, 32, 64
     V smoothing  : off, per_block(64)
@@ -58,7 +58,7 @@ def build_matrix() -> dict[str, QuantConfig]:
     """
     matrix: dict[str, QuantConfig] = {}
     for qk in ("fp8_block", "mxfp8"):
-        for vq in ("fp8_channel", "mxfp8_s"):
+        for vq in ("fp8_channel", "fp8_block", "mxfp8"):
             for sm in ("off", "k_only", "full"):
                 for kk in (None, 32, 64):
                     for vs in ("off", "per_block"):
@@ -77,6 +77,8 @@ def build_matrix() -> dict[str, QuantConfig]:
                                 q_smooth_block_size=256,
                                 fp8_block_size=128,
                                 mxfp8_block_size=32,
+                                v_fp8_block_size=64,
+                                v_mxfp8_block_size=64,
                                 v_smooth_mode=vs,
                                 v_smooth_block_size=64,
                                 p_requant=pr,

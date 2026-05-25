@@ -36,7 +36,7 @@ kernel 之间存在过大的语义差距。
 - 一个 FP32 scale 覆盖 `(B, H, D)`，沿 S reduce。
 - helper: `fp8_per_channel_quant`。
 
-保留 `mxfp8_s` 作为实验分支：
+保留 `mxfp8` 作为实验分支：
 
 - 沿 S 轴每 32 个 token 一个 scale。
 - helper: `mxfp8_v_quant`。
@@ -119,7 +119,7 @@ O = PV * (1 / row_sum) * v_descale
 | QK quant | `fp8_block`, `mxfp8` |
 | smoothing | `off`, `k_only`, `full` |
 | Q k-means | `off`, `on(k=32)` |
-| V quant | `fp8_channel` first, `mxfp8_s` optional |
+| V quant | `fp8_channel` first, `mxfp8` optional |
 | P requant | `off` reference, `on(p_max_offset=8)` |
 
 第一批必须跑：
@@ -136,7 +136,7 @@ O = PV * (1 / row_sum) * v_descale
 - `q_smooth_block_size in {128, 256, 512}`
 - `q_kmeans_k in {16, 32, 64}`
 - `p_max_offset in {0, 4, 6, 8}`
-- `V quant in {fp8_channel, mxfp8_s}`
+- `V quant in {fp8_channel, mxfp8}`
 
 ## 精度指标
 

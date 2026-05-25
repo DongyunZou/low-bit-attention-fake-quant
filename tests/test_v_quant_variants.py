@@ -126,3 +126,26 @@ def test_p_quant_elementwise_for_fp8_block_v():
     ref = reference_attention(q, k, v)
     cos = _cosine(o, ref)
     assert cos > 0.95, f"V=fp8_block: cos={cos:.4f}"
+
+
+def test_dynamic_p_quant_with_qm_k_rowmax_matches_online_dynamic():
+    """Using qm@K as rowmax estimate should be numerically close to online
+    rowmax when P uses dynamic per-row/block scaling."""
+    q, k, v = _make_qkv(b=1, s=512, h=2, d=64, seed=3)
+    base = dict(
+        qk_quant="mxfp8",
+        v_quant="fp8_channel",
+        smoothing="full",
+        q_smooth_block_size=128,
+        q_kmeans_k=16,
+        p_quant="dynamic",
+        p_requant=True,
+        p_requant_block_m=64,
+        p_requant_block_n=64,
+    )
+    online = fake_quant_attention(q, k, v, QuantConfig(**base, rowmax_mode="online"))
+    estimated = fake_quant_attention(q, k, v, QuantConfig(**base, rowmax_mode="qm_k"))
+    cos = _cosine(estimated, online)
+    max_abs = (estimated.float() - online.float()).abs().max().item()
+    assert cos > 0.9999, f"qm_k rowmax dynamic P vs online dynamic cosine={cos:.6f}"
+    assert max_abs < 5e-3
