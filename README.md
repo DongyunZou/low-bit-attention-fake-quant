@@ -30,6 +30,24 @@ where `cfg` is a `QuantConfig`.
 - `bench/sweep_kmeans_k.py`: Q/V k-means cluster count sweep.
 - `bench/gen_wan_videos.py`: end-to-end Wan video generation comparison.
 
+## Wan Layer-0 Accuracy Snapshot
+
+Mean over six real Wan2.1 layer-0 attention workloads in
+`/home/dongyun/dataset/v-dit/wan21_p1/layer_0`. Reference is BF16 SDPA.
+All rows use Q/K `fp8_block` with FP32 block scales and V `fp8_channel`.
+
+| Stack | P quant / row max | MSE | RMSE | Cosine |
+|---|---|---:|---:|---:|
+| K smooth only | static `P*256`, online row max | 1.717711e-03 | 4.046466e-02 | 0.996441 |
+| K smooth only | dynamic P, estimated row max | N/A | N/A | N/A |
+| Q k-means + Q smooth + K smooth | static `P*256`, online row max | 7.194572e-04 | 2.636703e-02 | 0.998528 |
+| Q k-means + Q smooth + K smooth | dynamic P, estimated row max | 7.128224e-04 | 2.624454e-02 | 0.998541 |
+| Q k-means + Q/V smooth + V k-means + K smooth | static `P*256`, online row max | 6.735246e-04 | 2.523165e-02 | 0.998598 |
+| Q k-means + Q/V smooth + V k-means + K smooth | dynamic P, estimated row max | 6.586863e-04 | 2.495268e-02 | 0.998630 |
+
+`dynamic P, estimated row max` uses `rowmax_mode="qm_k"`, so it requires Q
+smoothing and is not defined for K-smooth-only runs.
+
 See `docs/quant_precision_test_plan.md` for the longer implementation and
 evaluation plan.
 
