@@ -205,15 +205,15 @@ def run_eval(
         torch.cuda.synchronize()
         ref_s = time.time() - t_ref
 
-        # Build preprocess cache keyed by (smoothing, q_kmeans_k,
-        # q_smooth_block_size). All configs that share these reuse the
-        # kmeans + smooth_k + group_mean_q outputs.
+        # Build preprocess cache keyed by every field that changes
+        # kmeans/smoothing outputs.
         preprocess_cache: dict[tuple, PreprocessCache] = {}
         t_pre = time.time()
         for cfg in selected_configs.values():
             key = (cfg.smoothing, cfg.q_kmeans_k, cfg.q_smooth_block_size,
                    cfg.q_kmeans_iters, cfg.q_kmeans_seed,
-                   cfg.v_smooth_mode, cfg.v_smooth_block_size)
+                   cfg.v_smooth_mode, cfg.v_smooth_block_size,
+                   cfg.v_kmeans_k, cfg.v_kmeans_iters, cfg.v_kmeans_seed)
             if key in preprocess_cache:
                 continue
             preprocess_cache[key] = prepare_for_attention(q, k, v, cfg)
@@ -240,7 +240,8 @@ def run_eval(
         for cfg_name, cfg in selected_configs.items():
             key = (cfg.smoothing, cfg.q_kmeans_k, cfg.q_smooth_block_size,
                    cfg.q_kmeans_iters, cfg.q_kmeans_seed,
-                   cfg.v_smooth_mode, cfg.v_smooth_block_size)
+                   cfg.v_smooth_mode, cfg.v_smooth_block_size,
+                   cfg.v_kmeans_k, cfg.v_kmeans_iters, cfg.v_kmeans_seed)
             torch.cuda.synchronize()
             t_q = time.time()
             try:

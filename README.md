@@ -19,7 +19,9 @@ where `cfg` is a `QuantConfig`.
 - P quant: `elementwise` (`P * 256 -> FP8`), `mx` (pow2 dynamic scale),
   `dynamic` (FP32 dynamic scale), or `auto`
 - Row max: `online` exact row max, or `qm_k` using `max(qm @ K_smooth.T)` as an
-  experimental estimate
+  experimental estimate. In dynamic-P mode the Triton path can start from this
+  estimate and only fall back to an online-style rowmax update when the current
+  tile moves outside a threshold.
 
 `auto` picks `mx` for `v_quant="mxfp8"` and `elementwise` otherwise.
 
@@ -95,8 +97,45 @@ All rows use Q/K `fp8_block` with FP32 block scales and V `fp8_channel`.
 `dynamic P, estimated row max` uses `rowmax_mode="qm_k"`, so it requires Q
 smoothing and is not defined for K-smooth-only runs.
 
+## Estimated Rowmax Update Trick
+
+The dynamic-P path can use Q smoothing to pre-estimate each row's softmax
+coordinate:
+
+```text
+rowmax_est ~= max_K(q_m @ K_smooth.T)
+```
+
+This avoids running a full online rowmax update for most K tiles. The kernel
+still keeps online-softmax state and corrects the estimate when needed:
+
+- upward correction: update if `tile_max - m_i > up_threshold`
+- downward correction: update if `m_i - max_seen_i > down_threshold`
+- current debug candidate: `up_threshold=16`, `down_threshold=32`
+
+On the saved Wan bad self-attention call
+`bench/wan_diag_badcall/call_066.pt` with `q_smooth_block=256`,
+`q_kmeans_k=32`, `fp8_block_size=64`, and `block_m=block_n=64`, the Triton
+counter gives:
+
+| Method | Rowmax updates | Rescales | Rows with update |
+|---|---:|---:|---:|
+| FA4-style online, threshold 8 | 2,717,371 | 1,406,651 | 1,310,720 |
+| Estimated rowmax, up 16 / down 32 | 677,294 | 595,885 | 153,999 |
+
+So the estimated-rowmax path reduces rowmax updates by about 75% and rescale
+events by about 58% on this call. The point is to skip many online-softmax
+coordinate changes, which also avoids the associated accumulator rescale and
+extra exponent work in the hot K loop. The output is still checked against the
+online-rowmax dynamic-P path; saved sensitive calls and Wan layer-0 workloads
+show no NaN/Inf with this setting.
+
 See `docs/quant_precision_test_plan.md` for the longer implementation and
 evaluation plan.
+
+See `docs/fa4_implementation_roadmap.md` for the FA4 CUTE kernel roadmap from
+per-block FP32-scale FP8 quant through K/Q/V smoothing, k-means reorder, and the
+estimated-rowmax trick.
 
 ## Setup
 

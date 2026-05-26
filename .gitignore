@@ -23,3 +23,8 @@ bench/wan_videos/*.log.*
 
 # Smoke / temp outputs from earlier iterations
 bench/_smoke*
+
+# Local Wan debug / video artifacts
+bench/wan_diag*/
+bench/wan_e2e*/
+bench/wan_rowmax_diag/

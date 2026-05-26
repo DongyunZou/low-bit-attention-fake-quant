@@ -375,12 +375,120 @@ def _estimate_rowmax_from_qm_k(
     return (rowmax_g * float(sm_scale)).repeat_interleave(block_q, dim=2).contiguous()
 
 
+def _estimate_rowmax_from_q_kmeans_labels(
+    q_work: torch.Tensor,
+    qm: torch.Tensor,
+    k_work: torch.Tensor,
+    q_kmeans: KMeansReorderResult,
+    *,
+    block_q: int,
+    sm_scale: float,
+    chunk_n: int = 4096,
+) -> torch.Tensor:
+    """Estimate rowmax with per-segment means only at kmeans boundaries.
+
+    Fixed-size Q smoothing blocks can straddle kmeans cluster boundaries after
+    stable label sorting. Single-cluster blocks keep the original fixed-block
+    ``qm @ K`` estimate. Mixed blocks are split into consecutive same-label
+    segments; each segment uses its own local Q mean to avoid mixing two
+    clusters across the boundary.
+    """
+    b, s, h, d = q_work.shape
+    if s % block_q != 0:
+        raise ValueError(f"S={s} must be divisible by block_q={block_q}")
+    if qm.shape != (b, s // block_q, h, d):
+        raise ValueError(f"qm shape {tuple(qm.shape)} does not match q shape {tuple(q_work.shape)}")
+    if k_work.shape != q_work.shape:
+        raise ValueError(f"k_work shape {tuple(k_work.shape)} does not match q shape {tuple(q_work.shape)}")
+
+    labels_orig = q_kmeans.labels.reshape(b, h, s)
+    order = q_kmeans.order.reshape(b, h, s)
+    labels_re = torch.gather(labels_orig, 2, order)
+
+    rowmax = _estimate_rowmax_from_qm_k(
+        qm,
+        k_work,
+        block_q=block_q,
+        sm_scale=sm_scale,
+        chunk_n=chunk_n,
+    )
+    qm_rows = _broadcast_qm(qm, s)
+    q_pre = (q_work.float() + qm_rows.float()).permute(0, 2, 1, 3).contiguous()
+    k_bhsd = k_work.permute(0, 2, 1, 3).contiguous().float()
+    n_groups = s // block_q
+    labels_g = labels_re.reshape(b, h, n_groups, block_q)
+    mixed = labels_g.amax(dim=-1) != labels_g.amin(dim=-1)
+
+    # Mixed blocks are sparse, but scanning all K tokens once per segment is
+    # very slow in end-to-end fake quant. Collect segment means for every
+    # (B,H), pad them to one batch, then scan K with strided batched GEMMs.
+    bh = b * h
+    starts_by_bh: list[list[int]] = [[] for _ in range(bh)]
+    ends_by_bh: list[list[int]] = [[] for _ in range(bh)]
+    for bi in range(b):
+        for hi in range(h):
+            groups = torch.nonzero(mixed[bi, hi], as_tuple=False).flatten()
+            if groups.numel() == 0:
+                continue
+
+            flat = bi * h + hi
+            for gi in groups.tolist():
+                base = gi * block_q
+                lab = labels_re[bi, hi, base : base + block_q]
+                change = torch.nonzero(lab[1:] != lab[:-1], as_tuple=False).flatten() + 1
+                bounds = [0, *change.tolist(), block_q]
+                for start, end in zip(bounds[:-1], bounds[1:]):
+                    starts_by_bh[flat].append(base + start)
+                    ends_by_bh[flat].append(base + end)
+
+    max_segments = max((len(starts) for starts in starts_by_bh), default=0)
+    if max_segments == 0:
+        return rowmax.contiguous()
+
+    means_bhd = torch.zeros((bh, max_segments, d), dtype=torch.float32, device=q_work.device)
+    valid = torch.zeros((bh, max_segments), dtype=torch.bool, device=q_work.device)
+    for bi in range(b):
+        for hi in range(h):
+            flat = bi * h + hi
+            starts = starts_by_bh[flat]
+            if not starts:
+                continue
+            starts_t = torch.tensor(starts, device=q_work.device, dtype=torch.long)
+            ends_t = torch.tensor(ends_by_bh[flat], device=q_work.device, dtype=torch.long)
+            prefix = torch.nn.functional.pad(q_pre[bi, hi].cumsum(dim=0), (0, 0, 1, 0))
+            lengths = (ends_t - starts_t).to(torch.float32).unsqueeze(-1)
+            means = (prefix[ends_t] - prefix[starts_t]) / lengths
+            n_segments = means.shape[0]
+            means_bhd[flat, :n_segments] = means
+            valid[flat, :n_segments] = True
+
+    k_bsd = k_bhsd.reshape(bh, s, d)
+    seg_rowmax = torch.full(
+        (bh, max_segments),
+        -float("inf"),
+        dtype=torch.float32,
+        device=q_work.device,
+    )
+    for n0 in range(0, s, chunk_n):
+        n1 = min(n0 + chunk_n, s)
+        scores = torch.bmm(means_bhd, k_bsd[:, n0:n1, :].transpose(1, 2))
+        seg_rowmax = torch.maximum(seg_rowmax, scores.amax(dim=-1))
+    seg_rowmax = (seg_rowmax * float(sm_scale)).masked_fill(~valid, 0.0)
+
+    rowmax_bhs = rowmax.reshape(bh, s)
+    for flat, (starts, ends) in enumerate(zip(starts_by_bh, ends_by_bh, strict=True)):
+        for idx, (start, end) in enumerate(zip(starts, ends, strict=True)):
+            rowmax_bhs[flat, start:end] = seg_rowmax[flat, idx]
+    return rowmax.contiguous()
+
+
 def _fake_quant_attention_p_requant(
     q_work: torch.Tensor,
     k_work: torch.Tensor,
     v_work: torch.Tensor,
     qm: Optional[torch.Tensor],
     v_alpha: Optional[torch.Tensor],
+    q_kmeans: Optional[KMeansReorderResult],
     cfg: QuantConfig,
     sm_scale: float,
     out_dtype: torch.dtype,
@@ -467,6 +575,10 @@ def _fake_quant_attention_p_requant(
     elif cfg.rowmax_mode == "qm_k":
         if qm is None:
             raise ValueError("rowmax_mode='qm_k' requires smoothing='full' so qm exists")
+        # The Triton kernel now guards large rowmax-estimation misses with a
+        # FA4-style fallback update. In that mode the cheap fixed-block
+        # estimate is accurate enough for tested Wan workloads, while the
+        # boundary-segment estimate is too expensive for end-to-end debugging.
         rowmax_est_arg = _estimate_rowmax_from_qm_k(
             qm,
             k_work,
@@ -637,7 +749,7 @@ def fake_quant_attention(
 
     if cfg.p_requant:
         o = _fake_quant_attention_p_requant(
-            q_work, k_work, v_work, qm, v_alpha, cfg, sm_scale, out_dtype
+            q_work, k_work, v_work, qm, v_alpha, q_kmeans, cfg, sm_scale, out_dtype
         )
     else:
         o = _fake_quant_attention_sdpa(

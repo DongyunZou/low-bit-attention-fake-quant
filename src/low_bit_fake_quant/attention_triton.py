@@ -110,6 +110,7 @@ def _fake_quant_attn_fwd_kernel(
     l_i = tl.zeros([BLOCK_M], dtype=tl.float32)
     acc = tl.zeros([BLOCK_M, D], dtype=tl.float32)
     c_acc = tl.zeros([BLOCK_M, D], dtype=tl.float32)  # V-smoothing correction
+    max_seen_i = tl.full([BLOCK_M], float("-inf"), dtype=tl.float32)
 
     for start_n in range(0, N, BLOCK_N):
         offs_n = start_n + tl.arange(0, BLOCK_N)
@@ -132,8 +133,44 @@ def _fake_quant_attn_fwd_kernel(
         s_ij = tl.where(col_mask[None, :], s_ij, float("-inf"))
 
         if HAS_ROWMAX_EST:
-            m_ij = rowmax_est
-            alpha = tl.full([BLOCK_M], 1.0, dtype=tl.float32)
+            if P_QUANT_KIND == 2:
+                # Keep the estimated rowmax fast path. If a tile proves the
+                # chosen coordinate would push exp() outside a safe FP32 range,
+                # update the single rowmax state and rescale existing
+                # accumulators exactly like online softmax.
+                block_max = tl.max(s_ij, 1)
+                max_seen_ij = tl.maximum(max_seen_i, block_max)
+                # FA4-style dynamic-P mode: keep the current rowmax coordinate
+                # while changes are small enough not to materially affect FP8
+                # P quantization. Match the FA4 BF16 threshold first; larger
+                # values reduce rescale frequency at the cost of more drift
+                # from exact online rowmax.
+                up_threshold = 16.0 / LOG2E
+                down_threshold = 32.0 / LOG2E
+                under_est = (block_max - m_i) > up_threshold
+                # If the estimate is too high, move down before probability
+                # mass underflows. This preserves existing state via the same
+                # rescale path as online softmax whenever l_i is nonzero.
+                over_est = (m_i - max_seen_ij) > down_threshold
+                adjust = under_est | over_est
+                # Upward moves can safely jump to the tile max: old
+                # contributions become negligible if alpha underflows. Downward
+                # moves must be bounded so alpha=exp(old-new) stays finite.
+                down_m_bounded = tl.maximum(max_seen_ij + down_threshold, m_i - 80.0)
+                # If no probability mass has accumulated yet, there is no
+                # accumulator state to preserve; jump down to the observed max
+                # range immediately. This fixes over-estimate cases where the
+                # first tiles would otherwise underflow to zero.
+                down_m = tl.where(l_i == 0.0, max_seen_ij, down_m_bounded)
+                adjusted_m = tl.where(under_est, block_max, down_m)
+                m_ij = tl.where(adjust, adjusted_m, m_i)
+                alpha_update = tl.exp2((m_i - m_ij) * LOG2E)
+                alpha_update = tl.where(l_i == 0.0, 0.0, alpha_update)
+                alpha = tl.where(adjust, alpha_update, 1.0)
+                max_seen_i = max_seen_ij
+            else:
+                m_ij = rowmax_est
+                alpha = tl.full([BLOCK_M], 1.0, dtype=tl.float32)
         else:
             m_ij = tl.maximum(m_i, tl.max(s_ij, 1))
             alpha = tl.exp2((m_i - m_ij) * LOG2E)

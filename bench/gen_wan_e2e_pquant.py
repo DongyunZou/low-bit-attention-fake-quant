@@ -28,7 +28,7 @@ import torch
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from bench.wan_attention_hook import install_hook, set_quant_cfg  # noqa: E402
+from bench.wan_attention_hook import get_call_log, install_hook, set_quant_cfg  # noqa: E402
 from low_bit_fake_quant import QuantConfig  # noqa: E402
 
 
@@ -39,6 +39,7 @@ STRATEGIES = [
     "q_smooth_dynamic",
     "full_static",
     "full_dynamic",
+    "full_dynamic_online",
 ]
 
 
@@ -47,7 +48,7 @@ def make_cfg(name: str) -> Optional[QuantConfig]:
     common = dict(
         qk_quant="fp8_block",
         v_quant="fp8_channel",
-        q_smooth_block_size=64,
+        q_smooth_block_size=256,
         fp8_block_size=64,
         p_requant=True,
         p_requant_block_m=64,
@@ -106,6 +107,17 @@ def make_cfg(name: str) -> Optional[QuantConfig]:
             v_kmeans_k=64,
             p_quant="dynamic",
             rowmax_mode="qm_k",
+        )
+    if name == "full_dynamic_online":
+        return QuantConfig(
+            **common,
+            smoothing="full",
+            q_kmeans_k=32,
+            v_smooth_mode="per_block",
+            v_smooth_block_size=64,
+            v_kmeans_k=64,
+            p_quant="dynamic",
+            rowmax_mode="online",
         )
     raise ValueError(f"unknown strategy: {name!r}")
 
@@ -201,6 +213,8 @@ def main() -> None:
             offload_model=args.offload_model,
         )
         print(f"[{strategy}] generated in {time.time() - start:.1f}s -> {out_path}")
+        with (args.out_dir / f"{strategy}_call_log.json").open("w") as f:
+            json.dump(get_call_log(), f, indent=2)
         cache_video(
             tensor=video[None],
             save_file=str(out_path),

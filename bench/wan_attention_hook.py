@@ -19,13 +19,17 @@ Heuristic for self vs cross attention:
 from __future__ import annotations
 
 import math
+import os
 import threading
+from dataclasses import replace
+from pathlib import Path
 from typing import Optional
 
 import torch
 import torch.nn.functional as F
 
 from low_bit_fake_quant import QuantConfig, fake_quant_attention
+from low_bit_fake_quant.attention import PreprocessCache, prepare_for_attention
 
 
 # ----- Module-level mutable state (thread-safe enough for single-GPU eval) ----
@@ -51,6 +55,133 @@ def get_call_log() -> list[dict]:
 def _log_call(record: dict) -> None:
     with _state_lock:
         _call_log.append(record)
+
+
+def _maybe_dump_qkv(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, record: dict) -> None:
+    dump_dir = os.environ.get("WAN_ATTENTION_DUMP_DIR")
+    if not dump_dir:
+        return
+    with _state_lock:
+        log_idx = len(_call_log)
+        dump_idx = sum(1 for item in _call_log if item.get("dumped_qkv"))
+    dump_calls = os.environ.get("WAN_ATTENTION_DUMP_CALLS")
+    if dump_calls:
+        wanted = {int(item) for item in dump_calls.split(",") if item.strip()}
+        if log_idx not in wanted:
+            return
+    else:
+        limit = int(os.environ.get("WAN_ATTENTION_DUMP_LIMIT", "1"))
+        if dump_idx >= limit:
+            return
+    if dump_idx >= int(os.environ.get("WAN_ATTENTION_DUMP_LIMIT", "1000000")):
+        return
+    out_dir = Path(dump_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / f"call_{log_idx:03d}.pt"
+    torch.save(
+        {
+            "query": q.detach().cpu(),
+            "key": k.detach().cpu(),
+            "value": v.detach().cpu(),
+            "record": record,
+        },
+        path,
+    )
+    record["dumped_qkv"] = str(path)
+
+
+def _maybe_compare_to_sdpa(
+    out: torch.Tensor,
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    *,
+    dropout_p: float,
+    causal: bool,
+    softmax_scale: float,
+    record: dict,
+) -> None:
+    if os.environ.get("WAN_ATTENTION_COMPARE_SDPA") != "1":
+        return
+    qb = q.transpose(1, 2)
+    kb = k.transpose(1, 2)
+    vb = v.transpose(1, 2)
+    ref = F.scaled_dot_product_attention(
+        qb,
+        kb,
+        vb,
+        dropout_p=dropout_p,
+        is_causal=causal,
+        scale=softmax_scale,
+    ).transpose(1, 2).contiguous()
+    a = out.float().flatten()
+    b = ref.float().flatten()
+    diff = a - b
+    eps = 1e-12
+    a_norm = torch.linalg.vector_norm(a)
+    b_norm = torch.linalg.vector_norm(b)
+    record["compare_sdpa"] = {
+        "mse": float(diff.pow(2).mean().item()),
+        "cosine": float((torch.dot(a, b) / torch.clamp(a_norm * b_norm, min=eps)).item()),
+        "max_abs": float(diff.abs().max().item()),
+        "out_norm": float(a_norm.item()),
+        "ref_norm": float(b_norm.item()),
+        "out_has_nan": bool(torch.isnan(out).any().item()),
+        "out_has_inf": bool(torch.isinf(out).any().item()),
+    }
+
+
+def _maybe_compare_to_online_rowmax(
+    out: torch.Tensor,
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    cfg: QuantConfig,
+    *,
+    softmax_scale: float,
+    pad: int,
+    record: dict,
+    preprocess_cache: Optional[PreprocessCache] = None,
+) -> None:
+    if os.environ.get("WAN_ATTENTION_COMPARE_ONLINE_ROWMAX") != "1":
+        return
+    if cfg.rowmax_mode != "qm_k":
+        return
+
+    ref_cfg = replace(cfg, rowmax_mode="online")
+    if pad == 0:
+        ref = fake_quant_attention(
+            q, k, v, ref_cfg, sm_scale=softmax_scale, preprocess_cache=preprocess_cache
+        )
+    else:
+        B = q.shape[0]
+        q_pad = q.new_zeros(B, pad, q.shape[2], q.shape[3])
+        k_last = k[:, -1:, :, :].expand(B, pad, k.shape[2], k.shape[3])
+        v_last = v[:, -1:, :, :].expand(B, pad, v.shape[2], v.shape[3])
+        q_p = torch.cat([q, q_pad], dim=1)
+        k_p = torch.cat([k, k_last], dim=1)
+        v_p = torch.cat([v, v_last], dim=1)
+        ref = fake_quant_attention(
+            q_p, k_p, v_p, ref_cfg, sm_scale=softmax_scale, preprocess_cache=preprocess_cache
+        )[:, : q.shape[1]]
+
+    a = out.float().flatten()
+    b = ref.float().flatten()
+    diff = a - b
+    eps = 1e-12
+    a_norm = torch.linalg.vector_norm(a)
+    b_norm = torch.linalg.vector_norm(b)
+    record["compare_online_rowmax"] = {
+        "mse": float(diff.pow(2).mean().item()),
+        "cosine": float((torch.dot(a, b) / torch.clamp(a_norm * b_norm, min=eps)).item()),
+        "max_abs": float(diff.abs().max().item()),
+        "out_norm": float(a_norm.item()),
+        "ref_norm": float(b_norm.item()),
+        "out_has_nan": bool(torch.isnan(out).any().item()),
+        "out_has_inf": bool(torch.isinf(out).any().item()),
+        "ref_has_nan": bool(torch.isnan(ref).any().item()),
+        "ref_has_inf": bool(torch.isinf(ref).any().item()),
+    }
 
 
 # Sentinel for "no quant, just SDPA".
@@ -130,9 +261,20 @@ def _fake_or_sdpa_attention(
         import functools
         lcm = functools.reduce(lambda a, b: a * b // math.gcd(a, b), block_sizes, 1)
         pad = (lcm - Lq % lcm) % lcm
+        record = {"kind": "self-fq", "Lq": Lq, "Lk": Lk, "D": C, "H": Nq, "pad": pad}
+        _maybe_dump_qkv(q, k, v, record)
+        compare_online = (
+            os.environ.get("WAN_ATTENTION_COMPARE_ONLINE_ROWMAX") == "1"
+            and cfg.rowmax_mode == "qm_k"
+        )
+        preprocess_cache = None
 
         if pad == 0:
-            out = fake_quant_attention(q, k, v, cfg, sm_scale=softmax_scale)
+            if compare_online:
+                preprocess_cache = prepare_for_attention(q, k, v, cfg)
+            out = fake_quant_attention(
+                q, k, v, cfg, sm_scale=softmax_scale, preprocess_cache=preprocess_cache
+            )
         else:
             # Pad Q with zeros (those rows are stripped from output anyway).
             # Pad K/V with REPLICATED last row so attention weight on padded
@@ -144,9 +286,34 @@ def _fake_or_sdpa_attention(
             q_p = torch.cat([q, q_pad], dim=1)
             k_p = torch.cat([k, k_last], dim=1)
             v_p = torch.cat([v, v_last], dim=1)
-            out = fake_quant_attention(q_p, k_p, v_p, cfg, sm_scale=softmax_scale)
+            if compare_online:
+                preprocess_cache = prepare_for_attention(q_p, k_p, v_p, cfg)
+            out = fake_quant_attention(
+                q_p, k_p, v_p, cfg, sm_scale=softmax_scale, preprocess_cache=preprocess_cache
+            )
             out = out[:, :Lq]
-        _log_call({"kind": "self-fq", "Lq": Lq, "Lk": Lk, "D": C, "H": Nq, "pad": pad})
+        _maybe_compare_to_sdpa(
+            out,
+            q,
+            k,
+            v,
+            dropout_p=dropout_p,
+            causal=causal,
+            softmax_scale=softmax_scale,
+            record=record,
+        )
+        _maybe_compare_to_online_rowmax(
+            out,
+            q,
+            k,
+            v,
+            cfg,
+            softmax_scale=softmax_scale,
+            pad=pad,
+            record=record,
+            preprocess_cache=preprocess_cache,
+        )
+        _log_call(record)
         return out.to(q.dtype)
 
     # Fall back to plain SDPA — used for cross-attention always, and for
