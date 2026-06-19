@@ -41,8 +41,10 @@ from low_bit_fake_quant.blasst_skip import (
     LEVEL_FP8_QKV,
     LEVEL_FP8_STATIC_P,
     LEVEL_REFERENCE,
+    apply_token_permutation,
     sdpa_ground_truth,
     simulate_workload,
+    space_time_reorder_index,
 )
 from low_bit_fake_quant.skip_metrics import aggregate, compute_output_metrics
 
@@ -114,6 +116,7 @@ def run(
     matmul_dtype: torch.dtype,
     limit: Optional[int],
     sample_every: int = 1,
+    reorder_thw: Optional[tuple] = None,
 ) -> dict:
     out_dir.mkdir(parents=True, exist_ok=True)
     workloads = list(iter_workloads(roots))
@@ -131,6 +134,7 @@ def run(
         "matmul_dtype": str(matmul_dtype),
         "num_workloads": len(workloads),
         "ablation_ladder": list(LADDER),
+        "reorder_thw": list(reorder_thw) if reorder_thw else None,
     })
 
     results = {"manifest": manifest, "workloads": []}
@@ -140,6 +144,18 @@ def run(
         t0 = time.time()
         q, k, v = load_qkv(wl.path, device)
         b, s, h, d = q.shape
+        # optional space-time reorder arm: permute Q/K/V identically; the
+        # ground truth is computed on the SAME permuted tensors so metrics are
+        # in the permuted order (a pure reindexing for the no-skip rungs). DEC-4
+        # remains pending -- the (t,h,w) must be the true Wan2.1 latent grid.
+        if reorder_thw is not None:
+            t_, h_, w_ = reorder_thw
+            if t_ * h_ * w_ != s:
+                raise ValueError(f"reorder t*h*w={t_*h_*w_} != seqlen {s}")
+            perm = space_time_reorder_index(t_, h_, w_, device=device)
+            q = apply_token_permutation(q, perm)
+            k = apply_token_permutation(k, perm)
+            v = apply_token_permutation(v, perm)
         torch.cuda.synchronize()
 
         # ground truth (pinned memory-safe backend)
@@ -282,6 +298,9 @@ def main() -> None:
     ap.add_argument("--sample-every", type=int, default=1,
                     help="take every Nth workload (stratified by layer/timestep) for subset dev runs")
     ap.add_argument("--matmul-dtype", choices=["bf16", "fp32"], default="bf16")
+    ap.add_argument("--reorder", nargs=3, type=int, metavar=("T", "H", "W"), default=None,
+                    help="space-time reorder arm: (t,h,w) latent grid, product must equal seqlen "
+                         "(DEC-4 pending: must be the true Wan2.1 grid)")
     args = ap.parse_args()
 
     if not torch.cuda.is_available():
@@ -291,7 +310,8 @@ def main() -> None:
 
     roots = [Path(os.path.expanduser(str(r))) for r in args.data_roots]
     run(roots, out_dir=args.out_dir, lambdas=args.lambdas, device=device,
-        matmul_dtype=dtype, limit=args.limit, sample_every=args.sample_every)
+        matmul_dtype=dtype, limit=args.limit, sample_every=args.sample_every,
+        reorder_thw=tuple(args.reorder) if args.reorder else None)
 
 
 if __name__ == "__main__":

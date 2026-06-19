@@ -199,6 +199,38 @@ def test_empty_row_safeguard_forces_a_block():
     assert torch.isfinite(out).all()
 
 
+@CUDA
+def test_reorder_lambda0_equivalence():
+    # AC-6 positive: with reordering applied but skip disabled, the output
+    # after inverse permutation equals the native-order no-skip output, proving
+    # the permutation is a pure reindexing. seqlen = t*h*w, multiple of 128.
+    torch.manual_seed(6)
+    t, h, w = 5, 12, 16          # 960 tokens = 7.5 * 128 -> not multiple of 128
+    # pick a (t,h,w) whose product is a multiple of 128
+    t, h, w = 8, 8, 16           # 1024 tokens = 8 blocks
+    s = t * h * w
+    nh, d = 2, 64
+    q = torch.randn(1, s, nh, d, device="cuda", dtype=torch.bfloat16)
+    k = torch.randn(1, s, nh, d, device="cuda", dtype=torch.bfloat16)
+    v = torch.randn(1, s, nh, d, device="cuda", dtype=torch.bfloat16)
+    native = simulate_workload(q, k, v, skip_thresholds=[], levels=[LEVEL_REFERENCE])
+    o_native = native.outputs[LEVEL_REFERENCE]
+
+    perm = space_time_reorder_index(t, h, w, device=q.device)
+    inv = invert_permutation(perm)
+    qp = apply_token_permutation(q, perm)
+    kp = apply_token_permutation(k, perm)
+    vp = apply_token_permutation(v, perm)
+    reordered = simulate_workload(qp, kp, vp, skip_thresholds=[], levels=[LEVEL_REFERENCE])
+    o_restored = apply_token_permutation(reordered.outputs[LEVEL_REFERENCE], inv)
+
+    cos = float(
+        torch.dot(o_restored.reshape(-1).float(), o_native.reshape(-1).float())
+        / o_restored.float().norm() / o_native.float().norm()
+    )
+    assert cos >= 0.9999, cos
+
+
 # ----------------------------------------------------------------------------
 # FP8 numerics
 # ----------------------------------------------------------------------------
