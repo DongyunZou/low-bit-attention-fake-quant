@@ -42,6 +42,8 @@ from low_bit_fake_quant.blasst_skip import (
     LEVEL_FP8_STATIC_P,
     LEVEL_REFERENCE,
     apply_token_permutation,
+    choose_local_block,
+    invert_permutation,
     sdpa_ground_truth,
     simulate_workload,
     space_time_reorder_index,
@@ -135,6 +137,7 @@ def run(
         "num_workloads": len(workloads),
         "ablation_ladder": list(LADDER),
         "reorder_thw": list(reorder_thw) if reorder_thw else None,
+        "reorder_block": list(choose_local_block(*reorder_thw)) if reorder_thw else None,
     })
 
     results = {"manifest": manifest, "workloads": []}
@@ -144,29 +147,42 @@ def run(
         t0 = time.time()
         q, k, v = load_qkv(wl.path, device)
         b, s, h, d = q.shape
-        # optional space-time reorder arm: permute Q/K/V identically; the
-        # ground truth is computed on the SAME permuted tensors so metrics are
-        # in the permuted order (a pure reindexing for the no-skip rungs). DEC-4
-        # remains pending -- the (t,h,w) must be the true Wan2.1 latent grid.
+        torch.cuda.synchronize()
+
+        # ground truth is ALWAYS computed in native token order.
+        ref = sdpa_ground_truth(q, k, v)
+        torch.cuda.synchronize()
+
+        # optional space-time reorder arm: permute Q/K/V identically, simulate
+        # in reordered order, then inverse-permute every simulator output back
+        # to native order so metrics are computed against the native reference.
+        # This is a pure reindexing for the no-skip rungs; skipping differs
+        # because the 128-token tiles now hold coherent space-time blocks.
+        inv = None
         if reorder_thw is not None:
             t_, h_, w_ = reorder_thw
             if t_ * h_ * w_ != s:
                 raise ValueError(f"reorder t*h*w={t_*h_*w_} != seqlen {s}")
-            perm = space_time_reorder_index(t_, h_, w_, device=device)
-            q = apply_token_permutation(q, perm)
-            k = apply_token_permutation(k, perm)
-            v = apply_token_permutation(v, perm)
-        torch.cuda.synchronize()
-
-        # ground truth (pinned memory-safe backend)
-        ref = sdpa_ground_truth(q, k, v)
-        torch.cuda.synchronize()
+            block = choose_local_block(t_, h_, w_)
+            perm = space_time_reorder_index(t_, h_, w_, block=block, device=device)
+            inv = invert_permutation(perm)
+            qs = apply_token_permutation(q, perm)
+            ks = apply_token_permutation(k, perm)
+            vs = apply_token_permutation(v, perm)
+        else:
+            qs, ks, vs = q, k, v
 
         res = simulate_workload(
-            q, k, v, skip_thresholds=lambdas, levels=LADDER,
+            qs, ks, vs, skip_thresholds=lambdas, levels=LADDER,
             matmul_dtype=matmul_dtype,
         )
         torch.cuda.synchronize()
+
+        if inv is not None:
+            for lv in list(res.outputs):
+                res.outputs[lv] = apply_token_permutation(res.outputs[lv], inv)
+            for th in list(res.skip_outputs):
+                res.skip_outputs[th] = apply_token_permutation(res.skip_outputs[th], inv)
 
         rec = {
             "part": wl.part, "layer": wl.layer, "timestep": wl.timestep,

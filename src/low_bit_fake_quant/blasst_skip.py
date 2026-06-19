@@ -113,29 +113,92 @@ def sdpa_ground_truth(
     return o.permute(0, 2, 1, 3).contiguous()
 
 
-def space_time_reorder_index(t: int, h: int, w: int, device=None) -> torch.Tensor:
-    """Permutation that groups spatially/temporally adjacent tokens.
+def choose_local_block(t: int, h: int, w: int, tile: int = QUERY_TILE) -> tuple[int, int, int]:
+    """Pick a ``(bt, bh, bw)`` block whose product is ``tile`` (128) and which
+    divides ``(t, h, w)``, balancing locality across the three axes.
 
-    The native token order is the row-major flatten of a ``(t, h, w)`` latent
-    grid. This reindexes into ``(t_blocks, h_blocks, w_blocks, local)`` tiles so
-    each contiguous 128-token block holds a coherent space-time neighborhood,
-    raising whole-block skippability. ``t * h * w`` must equal the sequence
-    length. Returned as an index vector usable for gather / scatter.
+    Greedy: repeatedly double the block side of the axis with the largest
+    remaining ``dim / block`` ratio (and still divisible), until the block
+    volume reaches ``tile``. Raises if no such block exists.
+    """
+    if tile & (tile - 1) != 0:
+        raise ValueError("tile must be a power of two")
+    bt = bh = bw = 1
+    dims = {"t": t, "h": h, "w": w}
+    blk = {"t": 1, "h": 1, "w": 1}
+    while blk["t"] * blk["h"] * blk["w"] < tile:
+        # candidates whose dimension can still be doubled evenly
+        cand = [ax for ax in ("t", "h", "w") if (dims[ax] // blk[ax]) % 2 == 0 and dims[ax] // blk[ax] > 1]
+        if not cand:
+            raise ValueError(f"cannot tile ({t},{h},{w}) into a {tile}-token block")
+        ax = max(cand, key=lambda a: dims[a] / blk[a])
+        blk[ax] *= 2
+    bt, bh, bw = blk["t"], blk["h"], blk["w"]
+    if bt * bh * bw != tile:
+        raise ValueError(f"no {tile}-token block divides ({t},{h},{w})")
+    return bt, bh, bw
+
+
+def space_time_reorder_index(
+    t: int, h: int, w: int, block: Optional[tuple] = None, device=None
+) -> torch.Tensor:
+    """Permutation grouping spatially/temporally adjacent tokens into 128-blocks.
+
+    Native order is the row-major flatten of a ``(t, h, w)`` latent grid. This
+    reindexes into ``(t/bt, h/bh, w/bw, bt, bh, bw)`` block-major order so each
+    contiguous 128-token block is one coherent ``(bt, bh, bw)`` space-time
+    neighborhood — raising whole-block skippability. ``bt*bh*bw`` must equal the
+    128-token tile. Returns ``perm`` mapping new position -> native index (use
+    with ``index_select``); it is the identity only for a degenerate
+    ``(1,1,seqlen)``-style grid.
     """
     seqlen = t * h * w
-    # Plain space-filling reorder: sort tokens by a coarse (t, h, w) tile id so
-    # neighbors in all three axes land near each other. The exact tiling is a
-    # tunable; this default keeps temporal locality primary then spatial.
-    idx = torch.arange(seqlen, device=device)
-    tt = idx // (h * w)
-    rem = idx % (h * w)
-    hh = rem // w
-    ww = rem % w
-    # Coarsen each axis into blocks of ~4 so a 128-token window stays local.
-    key = (tt) * (h * w) + (hh) * w + ww  # identity by default
-    # Stable sort by composite key keeps it a pure permutation.
-    perm = torch.argsort(key, stable=True)
-    return perm
+    if block is None:
+        block = choose_local_block(t, h, w)
+    bt, bh, bw = block
+    if bt * bh * bw != QUERY_TILE:
+        raise ValueError(f"block {block} product != {QUERY_TILE}")
+    if t % bt or h % bh or w % bw:
+        raise ValueError(f"block {block} does not divide grid ({t},{h},{w})")
+    idx = torch.arange(seqlen, device=device).reshape(t, h, w)
+    idx = idx.reshape(t // bt, bt, h // bh, bh, w // bw, bw)
+    idx = idx.permute(0, 2, 4, 1, 3, 5).contiguous()  # (T,H,W, bt,bh,bw)
+    return idx.reshape(-1)
+
+
+def block_diagonal_mass(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    perm: torch.Tensor,
+    *,
+    sm_scale: Optional[float] = None,
+    n_heads: int = 4,
+    n_query_tiles: int = 8,
+) -> float:
+    """Mean fraction of softmax mass that lands in a query tile's *own* 128-block.
+
+    A locality score for ranking reorder layouts: permute Q/K by ``perm``, then
+    for a sample of 128-query-row tiles measure how much attention mass falls in
+    the key block at the same position (the block-diagonal). A reorder that
+    co-locates neighbors concentrates mass on the diagonal, raising this score
+    and the whole-block skippability. ``q``/``k`` are ``(1, S, H, D)``.
+    """
+    _, S, H, D = q.shape
+    if sm_scale is None:
+        sm_scale = 1.0 / math.sqrt(D)
+    nb = S // KEY_BLOCK
+    hsel = min(n_heads, H)
+    qh = q[0].index_select(0, perm).permute(1, 0, 2)[:hsel]  # (h, S, D)
+    kh = k[0].index_select(0, perm).permute(1, 0, 2)[:hsel]
+    tiles = torch.linspace(0, nb - 1, steps=min(n_query_tiles, nb)).round().long().tolist()
+    fracs = []
+    for i in sorted(set(tiles)):
+        rows = slice(i * QUERY_TILE, (i + 1) * QUERY_TILE)
+        scores = torch.matmul(qh[:, rows, :].float(), kh.transpose(1, 2).float()) * sm_scale
+        p = torch.softmax(scores, dim=-1).view(hsel, QUERY_TILE, nb, KEY_BLOCK)
+        block_mass = p.sum(dim=-1)                     # (h, 128, nb)
+        fracs.append(float(block_mass[..., i].mean()))
+    return float(sum(fracs) / max(1, len(fracs)))
 
 
 def apply_token_permutation(x: torch.Tensor, perm: torch.Tensor) -> torch.Tensor:

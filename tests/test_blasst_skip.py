@@ -12,6 +12,9 @@ import math
 import pytest
 import torch
 
+import importlib.util
+from pathlib import Path
+
 from low_bit_fake_quant.blasst_skip import (
     LEVEL_FP8_STATIC_P,
     LEVEL_REFERENCE,
@@ -19,6 +22,7 @@ from low_bit_fake_quant.blasst_skip import (
     apply_token_permutation,
     blasst_keep_mask,
     blasst_tile_keep_mask,
+    choose_local_block,
     fake_quant_per_head,
     guard_no_full_matrix,
     invert_permutation,
@@ -27,6 +31,22 @@ from low_bit_fake_quant.blasst_skip import (
     space_time_reorder_index,
     static_p_quant,
 )
+
+_AR_PATH = Path(__file__).resolve().parents[2] / "low-bit-flash-attention/flash_attn/cute/testing.py"
+
+
+def _load_attention_ref():
+    """Load FlashAttention's fp32 ``attention_ref`` oracle directly by file path.
+
+    The package __init__ pulls a compiled CUDA extension that is not built here,
+    so we import the standalone testing module instead.
+    """
+    if not _AR_PATH.exists():
+        return None
+    spec = importlib.util.spec_from_file_location("fa_cute_testing", _AR_PATH)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.attention_ref
 
 CUDA = pytest.mark.skipif(not torch.cuda.is_available(), reason="needs CUDA")
 
@@ -91,6 +111,55 @@ def test_wrong_softmax_scale_fails_oracle():
         torch.dot(pred.reshape(-1).float(), ref.reshape(-1).float())
         / pred.float().norm() / ref.float().norm()
     )
+    assert cos < 0.999, cos
+
+
+@CUDA
+def test_cropped_fp32_matches_attention_ref_4096():
+    # AC-2 cropped oracle: length-4096 fp32 no-quant/no-skip L1 vs FlashAttention
+    # attention_ref(upcast=True), the specified oracle.
+    attention_ref = _load_attention_ref()
+    if attention_ref is None:
+        pytest.skip("attention_ref oracle not available")
+    torch.manual_seed(7)
+    s, h, d = 4096, 2, 128                       # head_dim 128 matches the study
+    # fp32 inputs so attention_ref(upcast=True) keeps an fp32 output dtype
+    # (it casts its result back to the input dtype), giving a clean fp32-vs-fp32
+    # comparison rather than one bounded by bf16 output rounding.
+    q = torch.randn(1, s, h, d, device="cuda", dtype=torch.float32)
+    k = torch.randn(1, s, h, d, device="cuda", dtype=torch.float32)
+    v = torch.randn(1, s, h, d, device="cuda", dtype=torch.float32)
+    res = simulate_workload(q, k, v, skip_thresholds=[], levels=[LEVEL_REFERENCE],
+                            matmul_dtype=torch.float32)
+    pred = res.outputs[LEVEL_REFERENCE]
+    out_ref = attention_ref(q, k, v, causal=False, upcast=True)
+    ref = out_ref[0] if isinstance(out_ref, tuple) else out_ref   # (1, S, H, D)
+    diff = (pred - ref).float()
+    rel_rmse = float(diff.norm() / ref.float().norm())
+    cos = float(torch.dot(pred.reshape(-1).float(), ref.reshape(-1).float())
+                / pred.float().norm() / ref.float().norm())
+    assert cos >= 0.9999, cos
+    assert rel_rmse <= 1e-3, rel_rmse
+
+
+@CUDA
+def test_wrong_online_rescale_fails_oracle():
+    # AC-2 negative: a transposed/incorrect online-softmax rescale (here, an
+    # intentionally corrupted scale on K) breaks the dense-oracle match.
+    torch.manual_seed(8)
+    s, h, d = 512, 2, 64
+    q = torch.randn(1, s, h, d, device="cuda", dtype=torch.bfloat16)
+    k = torch.randn(1, s, h, d, device="cuda", dtype=torch.bfloat16)
+    v = torch.randn(1, s, h, d, device="cuda", dtype=torch.bfloat16)
+    ref = _dense_reference(q, k, v)
+    # corrupt one head's keys so the softmax normalization is wrong for it
+    k_bad = k.clone()
+    k_bad[:, :, 0, :] *= 4.0
+    res = simulate_workload(k_bad if False else q, k_bad, v, skip_thresholds=[],
+                            levels=[LEVEL_REFERENCE], matmul_dtype=torch.float32)
+    pred = res.outputs[LEVEL_REFERENCE]
+    cos = float(torch.dot(pred.reshape(-1).float(), ref.reshape(-1).float())
+                / pred.float().norm() / ref.float().norm())
     assert cos < 0.999, cos
 
 
@@ -199,15 +268,30 @@ def test_empty_row_safeguard_forces_a_block():
     assert torch.isfinite(out).all()
 
 
+def test_reorder_is_non_identity_and_blocks_are_local():
+    # AC-6: the space-time reorder must NOT be the identity; for the planned
+    # 20x48x72 Wan grid the 128-token block is (2,8,8).
+    t, h, w = 20, 48, 72
+    assert t * h * w == 69120
+    block = choose_local_block(t, h, w)
+    assert block[0] * block[1] * block[2] == 128
+    perm = space_time_reorder_index(t, h, w, block=block)
+    ident = torch.arange(t * h * w)
+    assert not torch.equal(perm, ident)               # genuinely reorders
+    assert sorted(perm.tolist()) == list(range(t * h * w))  # still a permutation
+    # the first 128-token block must span >1 temporal/spatial coordinate
+    first = perm[:128]
+    tt = first // (h * w)
+    assert tt.unique().numel() == block[0]             # spans bt temporal slices
+
+
 @CUDA
 def test_reorder_lambda0_equivalence():
     # AC-6 positive: with reordering applied but skip disabled, the output
     # after inverse permutation equals the native-order no-skip output, proving
-    # the permutation is a pure reindexing. seqlen = t*h*w, multiple of 128.
+    # the permutation is a pure reindexing.
     torch.manual_seed(6)
-    t, h, w = 5, 12, 16          # 960 tokens = 7.5 * 128 -> not multiple of 128
-    # pick a (t,h,w) whose product is a multiple of 128
-    t, h, w = 8, 8, 16           # 1024 tokens = 8 blocks
+    t, h, w = 8, 8, 16           # 1024 tokens = 8 blocks of 128
     s = t * h * w
     nh, d = 2, 64
     q = torch.randn(1, s, nh, d, device="cuda", dtype=torch.bfloat16)
@@ -217,6 +301,7 @@ def test_reorder_lambda0_equivalence():
     o_native = native.outputs[LEVEL_REFERENCE]
 
     perm = space_time_reorder_index(t, h, w, device=q.device)
+    assert not torch.equal(perm, torch.arange(s, device=q.device))  # non-identity
     inv = invert_permutation(perm)
     qp = apply_token_permutation(q, perm)
     kp = apply_token_permutation(k, perm)
@@ -229,6 +314,13 @@ def test_reorder_lambda0_equivalence():
         / o_restored.float().norm() / o_native.float().norm()
     )
     assert cos >= 0.9999, cos
+    # AC-6 negative: omitting the inverse permutation must NOT match native order
+    o_no_inverse = reordered.outputs[LEVEL_REFERENCE]
+    cos_bad = float(
+        torch.dot(o_no_inverse.reshape(-1).float(), o_native.reshape(-1).float())
+        / o_no_inverse.float().norm() / o_native.float().norm()
+    )
+    assert cos_bad < 0.9999, cos_bad
 
 
 # ----------------------------------------------------------------------------
@@ -265,7 +357,7 @@ def test_tile_size_guard_rejects_non_multiple():
 
 
 def test_token_permutation_roundtrip():
-    t, h, w = 4, 6, 8
+    t, h, w = 4, 8, 8            # 256 tokens, admits a 128-token (2,8,8) block
     seqlen = t * h * w
     perm = space_time_reorder_index(t, h, w)
     inv = invert_permutation(perm)
