@@ -39,6 +39,7 @@ import torch
 from low_bit_fake_quant.blasst_skip import (
     LADDER,
     LEVEL_FP8_QKV,
+    LEVEL_FP8_SKIP,
     LEVEL_FP8_STATIC_P,
     LEVEL_REFERENCE,
     apply_token_permutation,
@@ -233,7 +234,7 @@ def run(
             }
             flat_records.append({
                 "part": wl.part, "layer": wl.layer, "timestep": wl.timestep,
-                "level": "fp8_static_p_skip", "lambda": th, "vs": "ground_truth",
+                "level": LEVEL_FP8_SKIP, "lambda": th, "vs": "ground_truth",
                 "skip_rate": diag.skip_rate, "force_keep_count": diag.force_keep_count,
                 "dropped_mass_mean": diag.dropped_mass_mean,
                 "dropped_mass_p95": diag.dropped_mass_p95,
@@ -242,7 +243,7 @@ def run(
             })
             flat_records.append({
                 "part": wl.part, "layer": wl.layer, "timestep": wl.timestep,
-                "level": "fp8_static_p_skip", "lambda": th, "vs": "no_skip_fp8",
+                "level": LEVEL_FP8_SKIP, "lambda": th, "vs": "no_skip_fp8",
                 "skip_rate": diag.skip_rate, **m_skip.asdict(),
             })
 
@@ -276,7 +277,7 @@ def run(
     summary = {}
     for lv in LADDER:
         subset = [r for r in gt_records if r["level"] == lv]
-        if lv == "fp8_static_p_skip":
+        if lv == LEVEL_FP8_SKIP:
             by_lambda = {}
             for th in lambdas:
                 ls = [r for r in subset if r["lambda"] == th]

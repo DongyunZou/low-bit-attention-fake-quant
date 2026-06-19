@@ -20,7 +20,10 @@ import statistics
 from collections import defaultdict
 from pathlib import Path
 
-LADDER_NOSKIP = ["bf16_ref", "fp8_qkv", "fp8_static_p"]
+from low_bit_fake_quant.blasst_skip import LADDER, LEVEL_FP8_SKIP
+
+# No-skip ablation rungs, in ladder order (the skip rung is tabulated separately).
+LADDER_NOSKIP = [lv for lv in LADDER if lv != LEVEL_FP8_SKIP]
 
 
 def skip_only_relrmse(out_dir: Path):
@@ -28,7 +31,7 @@ def skip_only_relrmse(out_dir: Path):
     rows = list(csv.DictReader((out_dir / "records.csv").open()))
     by_lambda = defaultdict(list)
     for r in rows:
-        if r["level"] == "fp8_static_p_skip" and r["vs"] == "no_skip_fp8":
+        if r["level"] == LEVEL_FP8_SKIP and r["vs"] == "no_skip_fp8":
             by_lambda[float(r["lambda"])].append(float(r["rel_rmse"]))
     return {lam: statistics.mean(v) for lam, v in by_lambda.items()}
 
@@ -47,7 +50,7 @@ def ladder_table(res: dict) -> str:
 
 
 def skip_table(res: dict, skip_only: dict) -> str:
-    s = res["summary"]["fp8_static_p_skip"]
+    s = res["summary"][LEVEL_FP8_SKIP]
     lines = ["| λ | skip-rate | cosine | relRMSE | RMSE | MSE | dropped-mass p95 | skip-only relRMSE |",
              "|---|---|---|---|---|---|---|---|"]
     for th, v in s.items():

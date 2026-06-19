@@ -9,6 +9,7 @@ mean / median / p95 / worst-case, never a single global mean alone.
 
 from __future__ import annotations
 
+import dataclasses
 import math
 from dataclasses import dataclass
 
@@ -30,17 +31,7 @@ class OutputMetrics:
     max_abs_err: float
 
     def asdict(self) -> dict:
-        return {
-            "mse": self.mse,
-            "rmse": self.rmse,
-            "rel_rmse": self.rel_rmse,
-            "cosine_global": self.cosine_global,
-            "cosine_row_mean": self.cosine_row_mean,
-            "cosine_row_median": self.cosine_row_median,
-            "cosine_row_p05": self.cosine_row_p05,
-            "cosine_row_min": self.cosine_row_min,
-            "max_abs_err": self.max_abs_err,
-        }
+        return dataclasses.asdict(self)
 
 
 def compute_output_metrics(pred: torch.Tensor, ref: torch.Tensor) -> OutputMetrics:

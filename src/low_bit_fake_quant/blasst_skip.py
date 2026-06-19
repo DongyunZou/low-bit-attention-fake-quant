@@ -49,6 +49,10 @@ P_STATIC_SCALE = 256.0
 QUERY_TILE = 128
 KEY_BLOCK = 128
 
+# Floor applied to softmax denominators before dividing, to avoid 0/0 on rows
+# whose every kept block underflowed (e.g. aggressive skip thresholds).
+DENOM_FLOOR = 1e-30
+
 # Ablation ladder rung names. Plain descriptive identifiers (no workflow
 # markers) used as dictionary keys throughout the simulator and driver.
 LEVEL_REFERENCE = "bf16_ref"          # no quant, no skip (tiled SDPA twin)
@@ -155,7 +159,6 @@ def choose_local_block(t: int, h: int, w: int, tile: int = QUERY_TILE) -> tuple[
     """
     if tile & (tile - 1) != 0:
         raise ValueError("tile must be a power of two")
-    bt = bh = bw = 1
     dims = {"t": t, "h": h, "w": w}
     blk = {"t": 1, "h": 1, "w": 1}
     while blk["t"] * blk["h"] * blk["w"] < tile:
@@ -503,7 +506,7 @@ def simulate_workload(
         m = scores.shape[1]
         sb = scores.view(H, m, n_blocks, KEY_BLOCK)
         block_max = sb.amax(dim=-1)                         # (H, m, n_blocks)
-        running_max = torch.cummax(block_max, dim=-1).values  # (H, m, n_blocks)
+        running_max = running_row_max(block_max)            # (H, m, n_blocks) online cummax
         final_max = running_max[..., -1]                    # (H, m) global row max
         # online probs against the running max, then rescale each block to the
         # final max so all blocks share one normalization.
@@ -550,15 +553,21 @@ def simulate_workload(
             pv_block = pv_block.view(H, n_blocks, m, D).permute(0, 2, 1, 3)  # (H,m,nb,D)
             del pw
 
-        # ---- + static P quant, no skip ----
+            # Normalize the kept blocks: quantized-P numerator over the
+            # unquantized-P denominator. Both the no-skip rung and every skip
+            # threshold go through this single contraction (no large
+            # intermediate), so skip@(lambda=0) is bit-identical to the no-skip
+            # rung by construction.
+            def normalize_kept(keep_col):
+                acc = torch.einsum("hmjd,hj->hmd", pv_block, keep_col)    # (H, m, D)
+                denom = torch.einsum("hmj,hj->hm", l_block, keep_col).unsqueeze(-1)
+                return (acc / denom.clamp_min(DENOM_FLOOR)).permute(1, 0, 2)
+
+        # ---- + static P quant, no skip (all blocks kept) ----
         if LEVEL_FP8_STATIC_P in levels:
-            # Use the same keep-weighted contraction as the skip rung (with an
-            # all-ones mask) so skip@(lambda=0) is bit-identical to this rung.
             keep_all = torch.ones(H, n_blocks, device=device, dtype=pv_block.dtype)
-            acc = torch.einsum("hmjd,hj->hmd", pv_block, keep_all)    # (H, m, D)
-            denom = torch.einsum("hmj,hj->hm", l_block, keep_all).unsqueeze(-1).clamp_min(1e-30)
-            out[LEVEL_FP8_STATIC_P][rows] = (acc / denom).permute(1, 0, 2)
-            del acc, keep_all
+            out[LEVEL_FP8_STATIC_P][rows] = normalize_kept(keep_all)
+            del keep_all
 
         # ---- + BLASST skip @ each threshold (per (M-tile, key-block) tile) ----
         if want_skip:
@@ -575,7 +584,7 @@ def simulate_workload(
             if collect_dropped_mass:
                 # l_block is the per-block unquantized mass (== weighted_online
                 # block sum); reuse it as the true no-skip normalization.
-                true_denom = l_block.sum(dim=-1, keepdim=True).clamp_min(1e-30)
+                true_denom = l_block.sum(dim=-1, keepdim=True).clamp_min(DENOM_FLOOR)
                 block_frac = l_block / true_denom            # (H, m, n_blocks)
             for th, logt in zip(skip_thresholds, log_thresholds):
                 keep = tile_margin >= logt                   # (H, n_blocks) bool
@@ -590,16 +599,11 @@ def simulate_workload(
                     keep = keep | (rescue & none_kept.unsqueeze(-1))
                     force_keeps[th] += n_force
                 keep_col = keep.to(pv_block.dtype)              # (H, n_blocks)
-                # contract over the block axis weighted by the keep mask -- no
-                # large intermediate tensor is materialized.
-                acc = torch.einsum("hmjd,hj->hmd", pv_block, keep_col)    # (H, m, D)
-                denom = torch.einsum("hmj,hj->hm", l_block, keep_col).unsqueeze(-1).clamp_min(1e-30)
-                skip_out[th][rows] = (acc / denom).permute(1, 0, 2)
+                skip_out[th][rows] = normalize_kept(keep_col)
                 skipped_pairs[th] += int((~keep).sum().item())
                 if collect_dropped_mass:
                     dropped = (block_frac * (~keep).unsqueeze(1)).sum(dim=-1)  # (H, m)
                     dropped_chunks[th].append(dropped.reshape(-1).to("cpu"))
-                del acc
             del margin, tile_margin, tile_block_max
             if collect_dropped_mass:
                 del block_frac
