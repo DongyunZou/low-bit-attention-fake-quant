@@ -11,6 +11,7 @@
   "candidate_count_scored": 1446,
   "axis_orders_per_grid": 6,
   "native_diagonal_mass": 0.04731952461103598,
+  "native_is_best": false,
   "selected_grid": [
     18,
     48,
@@ -26,6 +27,22 @@
     "h",
     "w"
   ],
+  "best_reorder_grid": [
+    18,
+    48,
+    80
+  ],
+  "best_reorder_block": [
+    2,
+    8,
+    8
+  ],
+  "best_reorder_native_axis_order": [
+    "t",
+    "h",
+    "w"
+  ],
+  "best_reorder_diagonal_mass": 0.09122221641397725,
   "ranking": [
     {
       "grid": [
