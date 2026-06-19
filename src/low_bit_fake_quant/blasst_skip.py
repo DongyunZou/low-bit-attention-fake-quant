@@ -451,8 +451,11 @@ def simulate_workload(
         v_fp8_h = to_heads(v_fp8)
         q_fp8_h = to_heads(q_fp8)
 
-    # Output accumulators in fp32, (S, H, D).
-    out = {lv: torch.empty((S, H, D), dtype=torch.float32, device=device) for lv in levels}
+    # Output accumulators in fp32, (S, H, D). The skip rung's outputs live in
+    # ``skip_out`` (one per threshold), so it gets no buffer here -- allocating
+    # one would waste a full (S, H, D) buffer (gigabytes at full Wan seqlen).
+    out = {lv: torch.empty((S, H, D), dtype=torch.float32, device=device)
+           for lv in levels if lv != LEVEL_FP8_SKIP}
     skip_out = (
         {th: torch.empty((S, H, D), dtype=torch.float32, device=device) for th in skip_thresholds}
         if want_skip else {}

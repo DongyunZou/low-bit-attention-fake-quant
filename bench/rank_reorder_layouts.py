@@ -91,11 +91,12 @@ def select_layout(results: list) -> tuple:
 
 
 def load_sample(path: Path, device):
+    # The locality score uses only Q and K; V is never read, so it is not
+    # uploaded to the GPU (it would waste a full activation tensor per sample).
     data = torch.load(path, map_location="cpu", weights_only=False)
     q = data["query"].to(torch.bfloat16).to(device)
     k = data["key"].to(torch.bfloat16).to(device)
-    v = data["value"].to(torch.bfloat16).to(device)
-    return q, k, v
+    return q, k
 
 
 def main() -> None:
@@ -122,7 +123,7 @@ def main() -> None:
     def mean_mass(perm):
         return sum(
             block_diagonal_mass(q, k, perm, n_heads=args.n_heads, n_query_tiles=args.n_query_tiles)
-            for q, k, _ in samples
+            for q, k in samples
         ) / len(samples)
 
     # native order baseline (identity permutation)
