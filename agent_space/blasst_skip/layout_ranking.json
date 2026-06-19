@@ -1,0 +1,253 @@
+{
+  "seqlen": 69120,
+  "samples": [
+    "/home/ligengz/dataset/v-dit/wan21_p1/layer_0/timestep_0.pt",
+    "/home/ligengz/dataset/v-dit/wan21_p1/layer_20/timestep_3.pt",
+    "/home/ligengz/dataset/v-dit/wan21_p1/layer_39/timestep_6.pt"
+  ],
+  "metric": "mean fraction of softmax mass in the query tile's own 128-token block",
+  "block_tile": 128,
+  "native_diagonal_mass": 0.04731952461103598,
+  "ranking": [
+    {
+      "grid": [
+        4,
+        108,
+        160
+      ],
+      "block": [
+        1,
+        4,
+        32
+      ],
+      "label": "(4, 108, 160)",
+      "diagonal_mass": 0.04811847491267448
+    },
+    {
+      "grid": null,
+      "block": null,
+      "label": "native",
+      "diagonal_mass": 0.04731952461103598
+    },
+    {
+      "grid": [
+        4,
+        180,
+        96
+      ],
+      "block": [
+        1,
+        4,
+        32
+      ],
+      "label": "(4, 180, 96)",
+      "diagonal_mass": 0.043349023772558816
+    },
+    {
+      "grid": [
+        4,
+        90,
+        192
+      ],
+      "block": [
+        1,
+        2,
+        64
+      ],
+      "label": "(4, 90, 192)",
+      "diagonal_mass": 0.04157951300536903
+    },
+    {
+      "grid": [
+        5,
+        108,
+        128
+      ],
+      "block": [
+        1,
+        4,
+        32
+      ],
+      "label": "(5, 108, 128)",
+      "diagonal_mass": 0.03720687662522929
+    },
+    {
+      "grid": [
+        20,
+        48,
+        72
+      ],
+      "block": [
+        2,
+        8,
+        8
+      ],
+      "label": "(20, 48, 72)",
+      "diagonal_mass": 0.03516207625701403
+    },
+    {
+      "grid": [
+        4,
+        144,
+        120
+      ],
+      "block": [
+        1,
+        16,
+        8
+      ],
+      "label": "(4, 144, 120)",
+      "diagonal_mass": 0.03392947713534037
+    },
+    {
+      "grid": [
+        4,
+        120,
+        144
+      ],
+      "block": [
+        1,
+        8,
+        16
+      ],
+      "label": "(4, 120, 144)",
+      "diagonal_mass": 0.03382560521519432
+    },
+    {
+      "grid": [
+        5,
+        96,
+        144
+      ],
+      "block": [
+        1,
+        8,
+        16
+      ],
+      "label": "(5, 96, 144)",
+      "diagonal_mass": 0.03382560521519432
+    },
+    {
+      "grid": [
+        4,
+        135,
+        128
+      ],
+      "block": [
+        2,
+        1,
+        64
+      ],
+      "label": "(4, 135, 128)",
+      "diagonal_mass": 0.03381870131124742
+    },
+    {
+      "grid": [
+        5,
+        72,
+        192
+      ],
+      "block": [
+        1,
+        8,
+        16
+      ],
+      "label": "(5, 72, 192)",
+      "diagonal_mass": 0.031286784971598536
+    },
+    {
+      "grid": [
+        5,
+        144,
+        96
+      ],
+      "block": [
+        1,
+        16,
+        8
+      ],
+      "label": "(5, 144, 96)",
+      "diagonal_mass": 0.030337364403142903
+    },
+    {
+      "grid": [
+        4,
+        96,
+        180
+      ],
+      "block": [
+        1,
+        32,
+        4
+      ],
+      "label": "(4, 96, 180)",
+      "diagonal_mass": 0.026818453984257456
+    },
+    {
+      "grid": [
+        4,
+        160,
+        108
+      ],
+      "block": [
+        1,
+        32,
+        4
+      ],
+      "label": "(4, 160, 108)",
+      "diagonal_mass": 0.025987930333940312
+    },
+    {
+      "grid": [
+        5,
+        128,
+        108
+      ],
+      "block": [
+        1,
+        32,
+        4
+      ],
+      "label": "(5, 128, 108)",
+      "diagonal_mass": 0.025987930333940312
+    },
+    {
+      "grid": [
+        4,
+        192,
+        90
+      ],
+      "block": [
+        1,
+        64,
+        2
+      ],
+      "label": "(4, 192, 90)",
+      "diagonal_mass": 0.025851286579078685
+    },
+    {
+      "grid": [
+        4,
+        128,
+        135
+      ],
+      "block": [
+        2,
+        64,
+        1
+      ],
+      "label": "(4, 128, 135)",
+      "diagonal_mass": 0.022765911562601104
+    }
+  ],
+  "selected_grid": [
+    4,
+    108,
+    160
+  ],
+  "selected_block": [
+    1,
+    4,
+    32
+  ]
+}
