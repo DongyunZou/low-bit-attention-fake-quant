@@ -506,10 +506,11 @@ def simulate_workload(
         # final max so all blocks share one normalization.
         online = torch.exp(sb - running_max.unsqueeze(-1))  # (H, m, n_blocks, K)
         rescale = torch.exp(running_max - final_max.unsqueeze(-1)).unsqueeze(-1)  # (H,m,nb,1)
-        # rescale-to-final online weights, reused by the L2 rung and the
-        # dropped-mass diagnostic (computed once).
-        need_weighted_online = (LEVEL_FP8_QKV in levels) or (want_skip and collect_dropped_mass)
-        weighted_online = (online * rescale) if need_weighted_online else None
+        # rescale-to-final UNQUANTIZED online weights (P_true = exp(score - M)).
+        # Reused by the L2 rung, by the static-P/skip softmax DENOMINATOR (which
+        # must be the pre-quantization row sum, as in the FP8 attention path /
+        # p_requant_rows), and by the dropped-mass diagnostic.
+        weighted_online = online * rescale
 
         # ---- fp8 Q/K/V, online P in fp32 (no P quant, no skip) ----
         if LEVEL_FP8_QKV in levels:
@@ -528,8 +529,12 @@ def simulate_workload(
             p_uf += s_uf
             p_sqerr += s_err
             p_cnt += s_cnt
-            p_weighted = p_q * rescale                       # (H, m, n_blocks, K)
-            l_block = p_weighted.sum(dim=-1)                 # (H, m, n_blocks) per-block denom
+            p_weighted = p_q * rescale                       # (H, m, n_blocks, K) FP8-quantized
+            # Softmax denominator from the UNQUANTIZED probabilities, not the
+            # FP8-rounded mass: the FP8 attention path normalizes by the true row
+            # sum (cf. p_requant_rows), and ~25% of P values underflow to zero
+            # under static P*256. The numerator (pv_block) below uses quantized P.
+            l_block = weighted_online.sum(dim=-1)            # (H, m, n_blocks) unquantized denom
             # Per-block PV partials, computed ONCE: pv_block[h,i,j] = sum_k
             # p_weighted[h,i,j,k] * V[h,j,k]. Both the no-skip rung and every
             # skip threshold are then masked sums over the block axis -- no
@@ -565,9 +570,10 @@ def simulate_workload(
             # per-block true mass (unquantized) for the dropped-mass diagnostic,
             # normalized by the true no-skip denominator (fp8 scores, online P).
             if collect_dropped_mass:
-                block_mass = weighted_online.sum(dim=-1)     # (H, m, n_blocks)
-                true_denom = block_mass.sum(dim=-1, keepdim=True).clamp_min(1e-30)
-                block_frac = block_mass / true_denom         # (H, m, n_blocks)
+                # l_block is the per-block unquantized mass (== weighted_online
+                # block sum); reuse it as the true no-skip normalization.
+                true_denom = l_block.sum(dim=-1, keepdim=True).clamp_min(1e-30)
+                block_frac = l_block / true_denom            # (H, m, n_blocks)
             for th, logt in zip(skip_thresholds, log_thresholds):
                 keep = tile_margin >= logt                   # (H, n_blocks) bool
                 # empty-tile safeguard: an M-tile with zero kept key blocks
@@ -593,12 +599,11 @@ def simulate_workload(
                 del acc
             del margin, tile_margin, tile_block_max
             if collect_dropped_mass:
-                del block_mass, block_frac
+                del block_frac
 
         if need_static_p:
             del p_q, p_weighted, l_block, pv_block
-        if weighted_online is not None:
-            del weighted_online
+        del weighted_online
 
         total_pairs += H * n_blocks
         del scores, sb, block_max, running_max, online, rescale
