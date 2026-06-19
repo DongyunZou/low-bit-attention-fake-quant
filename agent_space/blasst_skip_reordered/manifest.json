@@ -34,13 +34,18 @@
     "fp8_static_p_skip"
   ],
   "reorder_thw": [
-    4,
-    108,
-    160
+    18,
+    48,
+    80
   ],
   "reorder_block": [
-    1,
-    4,
-    32
+    2,
+    8,
+    8
+  ],
+  "reorder_native_axis_order": [
+    "t",
+    "h",
+    "w"
   ]
 }
