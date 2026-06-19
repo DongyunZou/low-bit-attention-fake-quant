@@ -24,6 +24,10 @@ bench/wan_videos/*.log.*
 # Smoke / temp outputs from earlier iterations
 bench/_smoke*
 
+# agent_space: keep result tables/summaries, drop noisy run logs + smoke dirs
+agent_space/*.log
+agent_space/_*/
+
 # Local Wan debug / video artifacts
 bench/wan_diag*/
 bench/wan_e2e*/
