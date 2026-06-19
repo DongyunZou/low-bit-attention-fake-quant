@@ -33,5 +33,7 @@
     "fp8_static_p",
     "fp8_static_p_skip"
   ],
-  "reorder_thw": null
+  "reorder_thw": null,
+  "reorder_block": null,
+  "reorder_native_axis_order": null
 }
