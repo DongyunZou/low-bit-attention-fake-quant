@@ -220,6 +220,7 @@ def run(
         l3_ref = res.outputs[LEVEL_FP8_STATIC_P]
 
         # skip rungs: L4(lambda) vs ground truth AND vs L3 (skip-induced only)
+        out4 = None
         for th in lambdas:
             out4 = res.skip_outputs[th]
             m_gt = compute_output_metrics(out4, ref)
@@ -259,7 +260,12 @@ def run(
         with (out_dir / "results.json").open("w") as f:
             json.dump(results, f, indent=2, default=str)
 
-        del q, k, v, ref, res, l3_ref
+        # Drop every name still referencing this workload's GPU tensors before
+        # emptying the cache: the inputs (q/k/v), the (possibly permuted) sim
+        # inputs (qs/ks/vs), the SDPA reference, the result container, and the
+        # lingering aliases into it (l3_ref, out4). Otherwise empty_cache cannot
+        # reclaim them and peak memory grows workload-over-workload.
+        del q, k, v, qs, ks, vs, ref, res, l3_ref, out4
         gc.collect()
         torch.cuda.empty_cache()
 
