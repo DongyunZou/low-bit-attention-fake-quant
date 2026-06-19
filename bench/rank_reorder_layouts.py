@@ -15,6 +15,7 @@ Run:
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
 import os
 from pathlib import Path
@@ -41,13 +42,11 @@ def divisors(n: int):
     return sorted(ds)
 
 
-def candidate_grids(seqlen: int, *, t_range=(4, 48), spatial_range=(16, 200), limit: int = 16):
-    """Video-plausible (t,h,w) factorizations of ``seqlen`` that admit a *genuine*
-    (non-identity) 128-token space-time block.
+def candidate_grids(seqlen: int, *, t_range=(4, 48), spatial_range=(16, 200), limit=None):
+    """Video-plausible (t,h,w) factorizations of ``seqlen`` that admit a 128-block.
 
-    Implausible aspect ratios (e.g. w=1920) and identity-equivalent layouts
-    (a pure contiguous ``(1,1,128)`` block, which reproduces native order) are
-    excluded so the ranking compares real reorders.
+    Implausible aspect ratios (e.g. w=1920) are excluded. By default there is no
+    cap (``limit=None``) so every plausible grid is scored.
     """
     grids = []
     for t in divisors(seqlen):
@@ -61,13 +60,8 @@ def candidate_grids(seqlen: int, *, t_range=(4, 48), spatial_range=(16, 200), li
             if not (spatial_range[0] <= w <= spatial_range[1]):
                 continue
             try:
-                block = choose_local_block(t, h, w)
+                choose_local_block(t, h, w)
             except ValueError:
-                continue
-            # genuine reorder only: the block must span more than one axis, and
-            # the permutation must differ from native order.
-            perm = space_time_reorder_index(t, h, w, block=block)
-            if torch.equal(perm, torch.arange(seqlen)):
                 continue
             grids.append((t, h, w))
     default = (20, 48, 72)
@@ -77,7 +71,7 @@ def candidate_grids(seqlen: int, *, t_range=(4, 48), spatial_range=(16, 200), li
         if g not in seen:
             seen.add(g)
             out.append(g)
-        if len(out) >= limit:
+        if limit is not None and len(out) >= limit:
             break
     return out
 
@@ -109,24 +103,29 @@ def main() -> None:
         raise SystemExit("no sample workloads found")
     seqlen = samples[0][0].shape[1]
     grids = candidate_grids(seqlen)
+    axis_orders = list(itertools.permutations(("t", "h", "w")))   # all 6 flatten orders
 
-    # native order baseline (identity)
-    native_perm = torch.arange(seqlen, device=device)
-    results = []
-    native_score = sum(
-        block_diagonal_mass(q, k, native_perm, n_heads=args.n_heads, n_query_tiles=args.n_query_tiles)
-        for q, k, _ in samples
-    ) / len(samples)
-    results.append({"grid": None, "block": None, "label": "native", "diagonal_mass": native_score})
-
-    for g in grids:
-        block = choose_local_block(*g)
-        perm = space_time_reorder_index(*g, block=block, device=device)
-        score = sum(
+    def mean_mass(perm):
+        return sum(
             block_diagonal_mass(q, k, perm, n_heads=args.n_heads, n_query_tiles=args.n_query_tiles)
             for q, k, _ in samples
         ) / len(samples)
-        results.append({"grid": list(g), "block": list(block), "label": f"{g}", "diagonal_mass": score})
+
+    # native order baseline (identity permutation)
+    native_score = mean_mass(torch.arange(seqlen, device=device))
+    results = [{"grid": None, "block": None, "native_axis_order": None,
+                "label": "native", "diagonal_mass": native_score}]
+
+    scored = 0
+    for g in grids:
+        block = choose_local_block(*g)
+        for order in axis_orders:
+            perm = space_time_reorder_index(*g, block=block, native_axis_order=order, device=device)
+            score = mean_mass(perm)
+            scored += 1
+            results.append({"grid": list(g), "block": list(block),
+                            "native_axis_order": list(order),
+                            "label": f"{g}/{''.join(order)}", "diagonal_mass": score})
 
     results.sort(key=lambda r: -r["diagonal_mass"])
     best = next(r for r in results if r["grid"] is not None)
@@ -136,20 +135,25 @@ def main() -> None:
         "samples": [str(p) for p in args.samples if p.exists()],
         "metric": "mean fraction of softmax mass in the query tile's own 128-token block",
         "block_tile": QUERY_TILE,
+        "candidate_count_total": len(grids),
+        "candidate_count_scored": scored,
+        "axis_orders_per_grid": len(axis_orders),
         "native_diagonal_mass": native_score,
-        "ranking": results,
         "selected_grid": best["grid"],
         "selected_block": best["block"],
+        "selected_native_axis_order": best["native_axis_order"],
+        "ranking": results,
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with args.out.open("w") as f:
         json.dump(out, f, indent=2)
 
-    print(f"native diagonal-mass = {native_score:.4f}")
-    print("rank  grid                block        diagonal_mass")
-    for i, r in enumerate(results):
-        print(f"{i:>3}  {str(r['grid']):<18} {str(r['block']):<12} {r['diagonal_mass']:.4f}")
-    print(f"\nSELECTED grid={best['grid']} block={best['block']} -> {args.out}")
+    print(f"native diagonal-mass = {native_score:.4f} | grids={len(grids)} scored={scored}")
+    print("rank  grid/order                  block        diagonal_mass")
+    for i, r in enumerate(results[:20]):
+        print(f"{i:>3}  {r['label']:<26} {str(r['block']):<12} {r['diagonal_mass']:.4f}")
+    print(f"\nSELECTED grid={best['grid']} block={best['block']} "
+          f"order={best['native_axis_order']} -> {args.out}")
 
 
 if __name__ == "__main__":

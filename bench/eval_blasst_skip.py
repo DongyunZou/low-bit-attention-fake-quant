@@ -53,7 +53,7 @@ from low_bit_fake_quant.skip_metrics import aggregate, compute_output_metrics
 # Default geometric lambda grid: 0.0 (no skip) through an aggressive region.
 DEFAULT_LAMBDAS = [0.0, 1e-3, 3e-3, 1e-2, 3e-2, 0.1, 0.2, 0.3, 0.5, 0.7]
 
-# AC-2 pre-registered thresholds for the L1-vs-L0 sanity gate (recorded, not fatal).
+# Pre-registered thresholds for the reference (L1) vs SDPA (L0) sanity gate.
 L1_COS_MIN = 0.999
 L1_REL_RMSE_MAX = 2e-2
 
@@ -119,6 +119,7 @@ def run(
     limit: Optional[int],
     sample_every: int = 1,
     reorder_thw: Optional[tuple] = None,
+    reorder_order: tuple = ("t", "h", "w"),
 ) -> dict:
     out_dir.mkdir(parents=True, exist_ok=True)
     workloads = list(iter_workloads(roots))
@@ -138,6 +139,7 @@ def run(
         "ablation_ladder": list(LADDER),
         "reorder_thw": list(reorder_thw) if reorder_thw else None,
         "reorder_block": list(choose_local_block(*reorder_thw)) if reorder_thw else None,
+        "reorder_native_axis_order": list(reorder_order) if reorder_thw else None,
     })
 
     results = {"manifest": manifest, "workloads": []}
@@ -164,7 +166,8 @@ def run(
             if t_ * h_ * w_ != s:
                 raise ValueError(f"reorder t*h*w={t_*h_*w_} != seqlen {s}")
             block = choose_local_block(t_, h_, w_)
-            perm = space_time_reorder_index(t_, h_, w_, block=block, device=device)
+            perm = space_time_reorder_index(t_, h_, w_, block=block,
+                                            native_axis_order=reorder_order, device=device)
             inv = invert_permutation(perm)
             qs = apply_token_permutation(q, perm)
             ks = apply_token_permutation(k, perm)
@@ -204,7 +207,7 @@ def run(
                 "level": lv, "lambda": None, "vs": "ground_truth", **m.asdict(),
             })
 
-        # AC-2 sanity gate on L1 vs L0 (recorded, exploratory -> never aborts)
+        # reference (L1) vs SDPA (L0) sanity gate (recorded, exploratory -> never aborts)
         l1 = level_metrics[LEVEL_REFERENCE]
         rec["reference_check"] = {
             "cosine_global": l1.cosine_global,
@@ -316,7 +319,9 @@ def main() -> None:
     ap.add_argument("--matmul-dtype", choices=["bf16", "fp32"], default="bf16")
     ap.add_argument("--reorder", nargs=3, type=int, metavar=("T", "H", "W"), default=None,
                     help="space-time reorder arm: (t,h,w) latent grid, product must equal seqlen "
-                         "(DEC-4 pending: must be the true Wan2.1 grid)")
+                         "(the true Wan2.1 grid is unconfirmed; pick via rank_reorder_layouts.py)")
+    ap.add_argument("--reorder-order", nargs=3, choices=["t", "h", "w"], default=["t", "h", "w"],
+                    metavar=("A", "B", "C"), help="native flatten order of the latent grid")
     args = ap.parse_args()
 
     if not torch.cuda.is_available():
@@ -327,7 +332,8 @@ def main() -> None:
     roots = [Path(os.path.expanduser(str(r))) for r in args.data_roots]
     run(roots, out_dir=args.out_dir, lambdas=args.lambdas, device=device,
         matmul_dtype=dtype, limit=args.limit, sample_every=args.sample_every,
-        reorder_thw=tuple(args.reorder) if args.reorder else None)
+        reorder_thw=tuple(args.reorder) if args.reorder else None,
+        reorder_order=tuple(args.reorder_order))
 
 
 if __name__ == "__main__":

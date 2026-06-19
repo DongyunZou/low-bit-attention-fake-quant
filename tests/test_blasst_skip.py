@@ -18,6 +18,7 @@ from pathlib import Path
 from low_bit_fake_quant.blasst_skip import (
     LEVEL_FP8_STATIC_P,
     LEVEL_REFERENCE,
+    MATH_BACKEND_SEQLEN_LIMIT,
     FullMatrixAllocationError,
     apply_token_permutation,
     blasst_keep_mask,
@@ -27,6 +28,7 @@ from low_bit_fake_quant.blasst_skip import (
     guard_no_full_matrix,
     invert_permutation,
     running_row_max,
+    sdpa_ground_truth,
     simulate_workload,
     space_time_reorder_index,
     static_p_quant,
@@ -116,7 +118,7 @@ def test_wrong_softmax_scale_fails_oracle():
 
 @CUDA
 def test_cropped_fp32_matches_attention_ref_4096():
-    # AC-2 cropped oracle: length-4096 fp32 no-quant/no-skip L1 vs FlashAttention
+    # Cropped fp32 oracle: length-4096 no-quant/no-skip reference vs FlashAttention
     # attention_ref(upcast=True), the specified oracle.
     attention_ref = _load_attention_ref()
     if attention_ref is None:
@@ -142,25 +144,77 @@ def test_cropped_fp32_matches_attention_ref_4096():
     assert rel_rmse <= 1e-3, rel_rmse
 
 
+def _bad_rescale_online_attention(q, k, v, scale):
+    """Online-softmax attention with an intentionally WRONG accumulator rescale.
+
+    The correct flash rescale on a max increase from m to m_new multiplies the
+    running denominator/accumulator by exp(m - m_new) (<= 1). This buggy variant
+    uses exp(m_new - m) (>= 1), inflating earlier blocks, so the normalization is
+    wrong while the output stays finite. Inputs ``(1, S, H, D)`` fp32; keys are
+    streamed in 128-blocks.
+    """
+    qh = q[0].permute(1, 0, 2).float()       # (H, S, D)
+    kh = k[0].permute(1, 0, 2).float()
+    vh = v[0].permute(1, 0, 2).float()
+    H, S, D = qh.shape
+    m = denom = acc = None
+    for j in range(0, S, 128):
+        kb = kh[:, j:j + 128, :]
+        vb = vh[:, j:j + 128, :]
+        sj = torch.matmul(qh, kb.transpose(1, 2)) * scale     # (H, S, nb_keys)
+        blk_max = sj.amax(dim=-1)
+        if m is None:
+            m = blk_max
+            p = torch.exp(sj - m.unsqueeze(-1))
+            denom = p.sum(dim=-1)
+            acc = torch.matmul(p, vb)
+        else:
+            m_new = torch.maximum(m, blk_max)
+            alpha = torch.exp(m_new - m)                      # BUG: should be exp(m - m_new)
+            p = torch.exp(sj - m_new.unsqueeze(-1))
+            denom = denom * alpha + p.sum(dim=-1)
+            acc = acc * alpha.unsqueeze(-1) + torch.matmul(p, vb)
+            m = m_new
+    o = acc / denom.unsqueeze(-1)
+    return o.permute(1, 0, 2).unsqueeze(0)
+
+
 @CUDA
-def test_wrong_online_rescale_fails_oracle():
-    # AC-2 negative: a transposed/incorrect online-softmax rescale (here, an
-    # intentionally corrupted scale on K) breaks the dense-oracle match.
+def test_bad_online_rescale_fails_attention_ref():
+    # Negative: a wrong online-softmax accumulator rescale must fail the fp32
+    # attention_ref oracle on a cropped case.
+    attention_ref = _load_attention_ref()
+    if attention_ref is None:
+        pytest.skip("attention_ref oracle not available")
     torch.manual_seed(8)
-    s, h, d = 512, 2, 64
-    q = torch.randn(1, s, h, d, device="cuda", dtype=torch.bfloat16)
-    k = torch.randn(1, s, h, d, device="cuda", dtype=torch.bfloat16)
-    v = torch.randn(1, s, h, d, device="cuda", dtype=torch.bfloat16)
-    ref = _dense_reference(q, k, v)
-    # corrupt one head's keys so the softmax normalization is wrong for it
-    k_bad = k.clone()
-    k_bad[:, :, 0, :] *= 4.0
-    res = simulate_workload(k_bad if False else q, k_bad, v, skip_thresholds=[],
-                            levels=[LEVEL_REFERENCE], matmul_dtype=torch.float32)
-    pred = res.outputs[LEVEL_REFERENCE]
-    cos = float(torch.dot(pred.reshape(-1).float(), ref.reshape(-1).float())
-                / pred.float().norm() / ref.float().norm())
-    assert cos < 0.999, cos
+    s, h, d = 2048, 2, 128
+    q = torch.randn(1, s, h, d, device="cuda", dtype=torch.float32)
+    k = torch.randn(1, s, h, d, device="cuda", dtype=torch.float32)
+    v = torch.randn(1, s, h, d, device="cuda", dtype=torch.float32)
+    bad = _bad_rescale_online_attention(q, k, v, 1.0 / math.sqrt(d))
+    out_ref = attention_ref(q, k, v, causal=False, upcast=True)
+    ref = out_ref[0] if isinstance(out_ref, tuple) else out_ref
+    diff = (bad - ref).float()
+    rel_rmse = float(diff.norm() / ref.float().norm())
+    cos = float(torch.dot(bad.reshape(-1).float(), ref.reshape(-1).float())
+                / bad.float().norm() / ref.float().norm())
+    # must FAIL at least one registered threshold
+    assert (cos < 0.9999) or (rel_rmse > 1e-3), (cos, rel_rmse)
+
+
+@CUDA
+def test_forced_math_backend_rejected_at_full_seqlen():
+    # Negative: forcing the math SDPA backend at full seqlen is flagged
+    # (raised) up front rather than silently attempted (which would OOM).
+    s = MATH_BACKEND_SEQLEN_LIMIT
+    # tiny head_dim so the guard fires before any large allocation
+    q = torch.zeros(1, s, 1, 8, device="cuda", dtype=torch.bfloat16)
+    with pytest.raises(FullMatrixAllocationError):
+        sdpa_ground_truth(q, q, q, force_math_backend=True)
+    # below the limit, forced math is allowed (small shapes are safe)
+    qs = torch.randn(1, 256, 1, 8, device="cuda", dtype=torch.bfloat16)
+    out = sdpa_ground_truth(qs, qs, qs, force_math_backend=True)
+    assert out.shape == qs.shape
 
 
 # ----------------------------------------------------------------------------
@@ -269,7 +323,7 @@ def test_empty_row_safeguard_forces_a_block():
 
 
 def test_reorder_is_non_identity_and_blocks_are_local():
-    # AC-6: the space-time reorder must NOT be the identity; for the planned
+    # The space-time reorder must NOT be the identity; for the planned
     # 20x48x72 Wan grid the 128-token block is (2,8,8).
     t, h, w = 20, 48, 72
     assert t * h * w == 69120
@@ -287,9 +341,9 @@ def test_reorder_is_non_identity_and_blocks_are_local():
 
 @CUDA
 def test_reorder_lambda0_equivalence():
-    # AC-6 positive: with reordering applied but skip disabled, the output
-    # after inverse permutation equals the native-order no-skip output, proving
-    # the permutation is a pure reindexing.
+    # With reordering applied but skip disabled, the output after inverse
+    # permutation equals the native-order no-skip output, proving the
+    # permutation is a pure reindexing.
     torch.manual_seed(6)
     t, h, w = 8, 8, 16           # 1024 tokens = 8 blocks of 128
     s = t * h * w
@@ -314,7 +368,7 @@ def test_reorder_lambda0_equivalence():
         / o_restored.float().norm() / o_native.float().norm()
     )
     assert cos >= 0.9999, cos
-    # AC-6 negative: omitting the inverse permutation must NOT match native order
+    # Negative: omitting the inverse permutation must NOT match native order
     o_no_inverse = reordered.outputs[LEVEL_REFERENCE]
     cos_bad = float(
         torch.dot(o_no_inverse.reshape(-1).float(), o_native.reshape(-1).float())

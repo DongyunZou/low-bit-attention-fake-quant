@@ -81,6 +81,9 @@ def guard_no_full_matrix(shape, seqlen: int) -> None:
 
 # SDPA backends that stream the score matrix (never materialize seqlen x seqlen).
 _MEMORY_SAFE_SDPA_BACKENDS = [SDPBackend.FLASH_ATTENTION, SDPBackend.EFFICIENT_ATTENTION]
+# Sequence length at or above which the math (non-flash) SDPA backend would
+# materialize a dense scores matrix and OOM, so forcing it is rejected.
+MATH_BACKEND_SEQLEN_LIMIT = 8192
 
 
 def sdpa_ground_truth(
@@ -90,21 +93,36 @@ def sdpa_ground_truth(
     *,
     sm_scale: Optional[float] = None,
     allow_math_fallback: bool = False,
+    force_math_backend: bool = False,
 ) -> torch.Tensor:
     """Numerical ground truth: ``torch`` SDPA with a pinned memory-safe backend.
 
     The flash / mem-efficient backends stream the scores so SDPA itself never
-    builds the full ``seqlen x seqlen`` matrix. The math backend would, and
-    OOMs at full seqlen, so it is excluded unless ``allow_math_fallback`` is set
-    (used only to demonstrate the negative case).
+    builds the full ``seqlen x seqlen`` matrix. The math backend would, and OOMs
+    at full seqlen.
+
+    ``force_math_backend`` selects the math backend exclusively; at or above
+    ``MATH_BACKEND_SEQLEN_LIMIT`` that is rejected up front with
+    ``FullMatrixAllocationError`` (flagged, not silently attempted) rather than
+    OOMing. ``allow_math_fallback`` merely adds math as a permitted fallback for
+    small shapes.
     """
     if q.ndim != 4:
         raise ValueError(f"q/k/v must be (B, S, H, D); got {tuple(q.shape)}")
+    seqlen = q.shape[1]
+    if force_math_backend and seqlen >= MATH_BACKEND_SEQLEN_LIMIT:
+        raise FullMatrixAllocationError(
+            f"forcing the math SDPA backend at seqlen {seqlen} would materialize a "
+            f"{seqlen}x{seqlen} scores matrix and OOM; refusing"
+        )
     if sm_scale is None:
         sm_scale = 1.0 / math.sqrt(q.shape[-1])
-    backends = list(_MEMORY_SAFE_SDPA_BACKENDS)
-    if allow_math_fallback:
-        backends.append(SDPBackend.MATH)
+    if force_math_backend:
+        backends = [SDPBackend.MATH]
+    else:
+        backends = list(_MEMORY_SAFE_SDPA_BACKENDS)
+        if allow_math_fallback:
+            backends.append(SDPBackend.MATH)
     qb = q.permute(0, 2, 1, 3).contiguous()
     kb = k.permute(0, 2, 1, 3).contiguous()
     vb = v.permute(0, 2, 1, 3).contiguous()
@@ -139,18 +157,24 @@ def choose_local_block(t: int, h: int, w: int, tile: int = QUERY_TILE) -> tuple[
     return bt, bh, bw
 
 
+AXES = ("t", "h", "w")
+
+
 def space_time_reorder_index(
-    t: int, h: int, w: int, block: Optional[tuple] = None, device=None
+    t: int, h: int, w: int, block: Optional[tuple] = None,
+    native_axis_order: tuple = AXES, device=None,
 ) -> torch.Tensor:
     """Permutation grouping spatially/temporally adjacent tokens into 128-blocks.
 
-    Native order is the row-major flatten of a ``(t, h, w)`` latent grid. This
-    reindexes into ``(t/bt, h/bh, w/bw, bt, bh, bw)`` block-major order so each
-    contiguous 128-token block is one coherent ``(bt, bh, bw)`` space-time
-    neighborhood — raising whole-block skippability. ``bt*bh*bw`` must equal the
-    128-token tile. Returns ``perm`` mapping new position -> native index (use
-    with ``index_select``); it is the identity only for a degenerate
-    ``(1,1,seqlen)``-style grid.
+    The native token sequence is the flatten of the latent grid in
+    ``native_axis_order`` (a permutation of ``("t","h","w")``; the dataset does
+    not record which, so it is a tunable). This reshapes ``arange(seqlen)`` in
+    that order, permutes to canonical ``(t, h, w)``, then reindexes into
+    ``(t/bt, h/bh, w/bw, bt, bh, bw)`` block-major order so each contiguous
+    128-token block is one coherent ``(bt, bh, bw)`` space-time neighborhood —
+    raising whole-block skippability. ``bt*bh*bw`` must equal the 128-token tile.
+    Returns ``perm`` mapping new position -> native index (use with
+    ``index_select``).
     """
     seqlen = t * h * w
     if block is None:
@@ -160,9 +184,16 @@ def space_time_reorder_index(
         raise ValueError(f"block {block} product != {QUERY_TILE}")
     if t % bt or h % bh or w % bw:
         raise ValueError(f"block {block} does not divide grid ({t},{h},{w})")
-    idx = torch.arange(seqlen, device=device).reshape(t, h, w)
-    idx = idx.reshape(t // bt, bt, h // bh, bh, w // bw, bw)
-    idx = idx.permute(0, 2, 4, 1, 3, 5).contiguous()  # (T,H,W, bt,bh,bw)
+    if tuple(sorted(native_axis_order)) != tuple(sorted(AXES)):
+        raise ValueError(f"native_axis_order must be a permutation of {AXES}")
+    dims = {"t": t, "h": h, "w": w}
+    sizes = [dims[a] for a in native_axis_order]
+    arr = torch.arange(seqlen, device=device).reshape(*sizes)
+    # move the native axes into canonical (t, h, w) order
+    to_canonical = [native_axis_order.index(a) for a in AXES]
+    canonical = arr.permute(*to_canonical).contiguous()         # (t, h, w)
+    idx = canonical.reshape(t // bt, bt, h // bh, bh, w // bw, bw)
+    idx = idx.permute(0, 2, 4, 1, 3, 5).contiguous()            # (T,H,W, bt,bh,bw)
     return idx.reshape(-1)
 
 
