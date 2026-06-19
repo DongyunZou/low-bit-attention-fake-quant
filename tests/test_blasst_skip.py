@@ -29,10 +29,21 @@ from low_bit_fake_quant.blasst_skip import (
     invert_permutation,
     running_row_max,
     sdpa_ground_truth,
+    select_sdpa_backends,
     simulate_workload,
     space_time_reorder_index,
     static_p_quant,
 )
+from torch.nn.attention import SDPBackend
+
+_RANK_PATH = Path(__file__).resolve().parents[1] / "bench/rank_reorder_layouts.py"
+
+
+def _load_select_layout():
+    spec = importlib.util.spec_from_file_location("rank_reorder_layouts", _RANK_PATH)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.select_layout
 
 _AR_PATH = Path(__file__).resolve().parents[2] / "low-bit-flash-attention/flash_attn/cute/testing.py"
 
@@ -421,6 +432,42 @@ def test_token_permutation_roundtrip():
     assert torch.equal(restored, x)
     # it is a genuine permutation (every index used once)
     assert sorted(perm.tolist()) == list(range(seqlen))
+
+
+def test_sdpa_backend_selection_guards_math_at_full_seqlen():
+    # below the limit, the math fallback is permitted
+    small = select_sdpa_backends(512, force_math_backend=False, allow_math_fallback=True)
+    assert SDPBackend.MATH in small
+    # at/above the limit, the math fallback is NOT added (cannot OOM on dense S x S)
+    big = select_sdpa_backends(MATH_BACKEND_SEQLEN_LIMIT, force_math_backend=False,
+                               allow_math_fallback=True)
+    assert SDPBackend.MATH not in big
+    assert SDPBackend.FLASH_ATTENTION in big
+    # forcing math at full seqlen is rejected up front
+    with pytest.raises(FullMatrixAllocationError):
+        select_sdpa_backends(MATH_BACKEND_SEQLEN_LIMIT, force_math_backend=True,
+                             allow_math_fallback=False)
+    # forcing math below the limit is allowed
+    assert select_sdpa_backends(256, force_math_backend=True, allow_math_fallback=False) == [SDPBackend.MATH]
+
+
+def test_ranker_native_can_win_selection():
+    select_layout = _load_select_layout()
+    # native (grid None) has the highest diagonal mass -> recommend no reorder
+    res_native_best = [
+        {"grid": None, "block": None, "native_axis_order": None, "diagonal_mass": 0.30},
+        {"grid": [8, 8, 16], "block": [2, 8, 8], "native_axis_order": ["t", "h", "w"], "diagonal_mass": 0.20},
+    ]
+    best, best_reorder = select_layout(res_native_best)
+    assert best["grid"] is None                       # native wins -> no reorder
+    assert best_reorder["grid"] == [8, 8, 16]         # still reports best candidate
+    # a reorder beats native -> select that reorder
+    res_reorder_best = [
+        {"grid": None, "block": None, "native_axis_order": None, "diagonal_mass": 0.20},
+        {"grid": [8, 8, 16], "block": [2, 8, 8], "native_axis_order": ["t", "h", "w"], "diagonal_mass": 0.35},
+    ]
+    best, _ = select_layout(res_reorder_best)
+    assert best["grid"] == [8, 8, 16]
 
 
 def test_full_matrix_guard_rejects_square():

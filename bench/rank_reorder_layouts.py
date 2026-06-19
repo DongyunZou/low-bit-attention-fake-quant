@@ -76,6 +76,20 @@ def candidate_grids(seqlen: int, *, t_range=(4, 48), spatial_range=(16, 200), li
     return out
 
 
+def select_layout(results: list) -> tuple:
+    """Pick the overall-best layout (including native) and the best reorder.
+
+    ``results`` is a list of ``{"grid", "diagonal_mass", ...}`` rows where the
+    native row has ``grid is None``. Returns ``(best, best_reorder)`` where
+    ``best`` may be the native row (recommend no reorder if no candidate beats
+    native locality) and ``best_reorder`` is the top non-native candidate.
+    """
+    ranked = sorted(results, key=lambda r: -r["diagonal_mass"])
+    best = ranked[0]
+    best_reorder = next((r for r in ranked if r["grid"] is not None), None)
+    return best, best_reorder
+
+
 def load_sample(path: Path, device):
     data = torch.load(path, map_location="cpu", weights_only=False)
     q = data["query"].to(torch.bfloat16).to(device)
@@ -128,7 +142,10 @@ def main() -> None:
                             "label": f"{g}/{''.join(order)}", "diagonal_mass": score})
 
     results.sort(key=lambda r: -r["diagonal_mass"])
-    best = next(r for r in results if r["grid"] is not None)
+    # Select the overall best, INCLUDING native: if no reorder beats native
+    # locality, recommend no reorder (selected_grid = None) rather than a
+    # candidate that is worse than doing nothing.
+    best, best_reorder = select_layout(results)
 
     out = {
         "seqlen": seqlen,
@@ -139,9 +156,14 @@ def main() -> None:
         "candidate_count_scored": scored,
         "axis_orders_per_grid": len(axis_orders),
         "native_diagonal_mass": native_score,
+        "native_is_best": best["grid"] is None,
         "selected_grid": best["grid"],
         "selected_block": best["block"],
         "selected_native_axis_order": best["native_axis_order"],
+        "best_reorder_grid": best_reorder["grid"] if best_reorder else None,
+        "best_reorder_block": best_reorder["block"] if best_reorder else None,
+        "best_reorder_native_axis_order": best_reorder["native_axis_order"] if best_reorder else None,
+        "best_reorder_diagonal_mass": best_reorder["diagonal_mass"] if best_reorder else None,
         "ranking": results,
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -152,8 +174,11 @@ def main() -> None:
     print("rank  grid/order                  block        diagonal_mass")
     for i, r in enumerate(results[:20]):
         print(f"{i:>3}  {r['label']:<26} {str(r['block']):<12} {r['diagonal_mass']:.4f}")
-    print(f"\nSELECTED grid={best['grid']} block={best['block']} "
-          f"order={best['native_axis_order']} -> {args.out}")
+    if best["grid"] is None:
+        print(f"\nSELECTED: native order (no reorder beats native locality) -> {args.out}")
+    else:
+        print(f"\nSELECTED grid={best['grid']} block={best['block']} "
+              f"order={best['native_axis_order']} -> {args.out}")
 
 
 if __name__ == "__main__":

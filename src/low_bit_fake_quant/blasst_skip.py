@@ -86,6 +86,28 @@ _MEMORY_SAFE_SDPA_BACKENDS = [SDPBackend.FLASH_ATTENTION, SDPBackend.EFFICIENT_A
 MATH_BACKEND_SEQLEN_LIMIT = 8192
 
 
+def select_sdpa_backends(seqlen: int, *, force_math_backend: bool, allow_math_fallback: bool):
+    """Choose SDPA backends so the math kernel is never reachable at full seqlen.
+
+    ``force_math_backend`` selects math exclusively but is rejected at
+    ``seqlen >= MATH_BACKEND_SEQLEN_LIMIT`` (would OOM). Otherwise the streaming
+    flash/efficient backends are pinned, and the math backend is added as a
+    fallback ONLY below the limit — at full seqlen it is omitted so SDPA cannot
+    silently fall back to a dense ``seqlen x seqlen`` matmul.
+    """
+    if force_math_backend:
+        if seqlen >= MATH_BACKEND_SEQLEN_LIMIT:
+            raise FullMatrixAllocationError(
+                f"forcing the math SDPA backend at seqlen {seqlen} would materialize a "
+                f"{seqlen}x{seqlen} scores matrix and OOM; refusing"
+            )
+        return [SDPBackend.MATH]
+    backends = list(_MEMORY_SAFE_SDPA_BACKENDS)
+    if allow_math_fallback and seqlen < MATH_BACKEND_SEQLEN_LIMIT:
+        backends.append(SDPBackend.MATH)
+    return backends
+
+
 def sdpa_ground_truth(
     q: torch.Tensor,
     k: torch.Tensor,
@@ -110,19 +132,11 @@ def sdpa_ground_truth(
     if q.ndim != 4:
         raise ValueError(f"q/k/v must be (B, S, H, D); got {tuple(q.shape)}")
     seqlen = q.shape[1]
-    if force_math_backend and seqlen >= MATH_BACKEND_SEQLEN_LIMIT:
-        raise FullMatrixAllocationError(
-            f"forcing the math SDPA backend at seqlen {seqlen} would materialize a "
-            f"{seqlen}x{seqlen} scores matrix and OOM; refusing"
-        )
+    backends = select_sdpa_backends(
+        seqlen, force_math_backend=force_math_backend, allow_math_fallback=allow_math_fallback
+    )
     if sm_scale is None:
         sm_scale = 1.0 / math.sqrt(q.shape[-1])
-    if force_math_backend:
-        backends = [SDPBackend.MATH]
-    else:
-        backends = list(_MEMORY_SAFE_SDPA_BACKENDS)
-        if allow_math_fallback:
-            backends.append(SDPBackend.MATH)
     qb = q.permute(0, 2, 1, 3).contiguous()
     kb = k.permute(0, 2, 1, 3).contiguous()
     vb = v.permute(0, 2, 1, 3).contiguous()
