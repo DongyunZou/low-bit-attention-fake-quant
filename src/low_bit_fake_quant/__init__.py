@@ -8,6 +8,7 @@ from .attention import (
     reference_attention,
 )
 from .config import QuantConfig
+from .hadamard import apply_qk_hadamard, fast_hadamard_available, hadamard_transform_last_dim
 from .kmeans import (
     KMeansReorderResult,
     apply_kv_permutation,
@@ -34,13 +35,16 @@ __all__ = [
     "PreparedQKV",
     "PreprocessCache",
     "QuantConfig",
+    "apply_qk_hadamard",
     "fake_quant_attention",
+    "fast_hadamard_available",
     "prepare_for_attention",
     "fp8_block_dequant",
     "fp8_block_quant",
     "fp8_per_channel_dequant",
     "fp8_per_channel_quant",
     "group_mean_q",
+    "hadamard_transform_last_dim",
     "smooth_v_per_block",
     "mxfp8_qk_dequant",
     "mxfp8_qk_quant",

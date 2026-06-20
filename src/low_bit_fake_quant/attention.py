@@ -34,6 +34,8 @@ Supported quant strategies
   K-mean smoothing, optionally with grouped Q centering.
 - ``cfg.q_kmeans_k = 32 | 64 | None`` — Q-token reorder by k-means,
   inverse-reordered after attention.
+- ``cfg.qk_hadamard`` — orthonormal Hadamard rotation on Q/K before Q/K
+  quantization; full-precision logits are unchanged, but FP8 Q/K error can drop.
 - ``cfg.p_requant`` toggles the P FP8 cast.
 """
 
@@ -47,6 +49,7 @@ import torch
 import torch.nn.functional as F
 
 from .config import QuantConfig
+from .hadamard import apply_qk_hadamard
 from .kmeans import (
     KMeansReorderResult,
     apply_kv_permutation,
@@ -80,6 +83,22 @@ class FakeQuantArtifacts:
     kmeans: Optional[KMeansReorderResult] = None
     q_eff_dtype: Optional[torch.dtype] = None
     p_requant: bool = False
+    qk_hadamard: bool = False
+
+
+def _qk_inputs_for_quant(
+    q_work: torch.Tensor,
+    k_work: torch.Tensor,
+    cfg: QuantConfig,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    if not cfg.qk_hadamard:
+        return q_work, k_work
+    return apply_qk_hadamard(
+        q_work,
+        k_work,
+        random_sign=cfg.qk_hadamard_random_sign,
+        seed=cfg.qk_hadamard_seed,
+    )
 
 
 def _quant_qk(t: torch.Tensor, cfg: QuantConfig) -> Tuple[torch.Tensor, torch.Tensor, dict]:
@@ -253,8 +272,9 @@ def _fake_quant_attention_sdpa(
     alpha[block] back to V_deq before the PV matmul.
     """
     b, s, h, d = q_work.shape
-    q_fp8, q_scale, q_meta = _quant_qk(q_work, cfg)
-    k_fp8, k_scale, k_meta = _quant_qk(k_work, cfg)
+    q_quant_in, k_quant_in = _qk_inputs_for_quant(q_work, k_work, cfg)
+    q_fp8, q_scale, q_meta = _quant_qk(q_quant_in, cfg)
+    k_fp8, k_scale, k_meta = _quant_qk(k_quant_in, cfg)
     v_fp8, v_scale, v_meta = _quant_v(v_work, cfg)
     q_deq = _dequant_qk(q_fp8, q_scale, q_meta, sdpa_dtype)
     k_deq = _dequant_qk(k_fp8, k_scale, k_meta, sdpa_dtype)
@@ -508,8 +528,9 @@ def _fake_quant_attention_p_requant(
 
     # Quantize and dequantize Q, K → BF16 for the matmul. (Q/K cast errors
     # enter as input perturbations.)
-    q_fp8, q_scale, q_meta = _quant_qk(q_work, cfg)
-    k_fp8, k_scale, k_meta = _quant_qk(k_work, cfg)
+    q_quant_in, k_quant_in = _qk_inputs_for_quant(q_work, k_work, cfg)
+    q_fp8, q_scale, q_meta = _quant_qk(q_quant_in, cfg)
+    k_fp8, k_scale, k_meta = _quant_qk(k_quant_in, cfg)
     q_deq = _dequant_qk(q_fp8, q_scale, q_meta, torch.bfloat16)
     k_deq = _dequant_qk(k_fp8, k_scale, k_meta, torch.bfloat16)
 
@@ -773,6 +794,7 @@ def fake_quant_attention(
             kmeans=q_kmeans,
             q_eff_dtype=sdpa_dtype,
             p_requant=cfg.p_requant,
+            qk_hadamard=cfg.qk_hadamard,
         )
         return o, art
     return o

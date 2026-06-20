@@ -1,0 +1,1517 @@
+{
+  "dataset": "/home/dongyunz/dataset/v-dit/wan21_p1",
+  "torch_version": "2.12.0+cu132",
+  "device": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+  "fast_hadamard_available": false,
+  "max_score_tokens": 1024,
+  "smooth_controls": {
+    "smoothing": "off",
+    "q_kmeans_k": null,
+    "v_smooth_mode": "off",
+    "v_kmeans_k": null
+  },
+  "configs": {
+    "fp8_block_base": {
+      "qk_quant": "fp8_block",
+      "v_quant": "fp8_channel",
+      "smoothing": "off",
+      "q_smooth_block_size": 256,
+      "q_kmeans_k": null,
+      "q_kmeans_iters": 10,
+      "q_kmeans_seed": 0,
+      "qk_hadamard": false,
+      "qk_hadamard_random_sign": true,
+      "qk_hadamard_seed": 0,
+      "fp8_block_size": 128,
+      "mxfp8_block_size": 32,
+      "v_fp8_block_size": 64,
+      "v_mxfp8_block_size": 64,
+      "p_quant": "elementwise",
+      "rowmax_mode": "online",
+      "p_mx_block_n": 0,
+      "p_max_offset": 8,
+      "correction_dtype": "torch.float16",
+      "p_requant": false,
+      "p_requant_q_chunk": 512,
+      "p_requant_block_m": 64,
+      "p_requant_block_n": 64,
+      "v_smooth_mode": "off",
+      "v_smooth_block_size": 64,
+      "v_kmeans_k": null,
+      "v_kmeans_iters": 10,
+      "v_kmeans_seed": 0
+    },
+    "fp8_block_hadamard": {
+      "qk_quant": "fp8_block",
+      "v_quant": "fp8_channel",
+      "smoothing": "off",
+      "q_smooth_block_size": 256,
+      "q_kmeans_k": null,
+      "q_kmeans_iters": 10,
+      "q_kmeans_seed": 0,
+      "qk_hadamard": true,
+      "qk_hadamard_random_sign": true,
+      "qk_hadamard_seed": 0,
+      "fp8_block_size": 128,
+      "mxfp8_block_size": 32,
+      "v_fp8_block_size": 64,
+      "v_mxfp8_block_size": 64,
+      "p_quant": "elementwise",
+      "rowmax_mode": "online",
+      "p_mx_block_n": 0,
+      "p_max_offset": 8,
+      "correction_dtype": "torch.float16",
+      "p_requant": false,
+      "p_requant_q_chunk": 512,
+      "p_requant_block_m": 64,
+      "p_requant_block_n": 64,
+      "v_smooth_mode": "off",
+      "v_smooth_block_size": 64,
+      "v_kmeans_k": null,
+      "v_kmeans_iters": 10,
+      "v_kmeans_seed": 0
+    },
+    "mxfp8_base": {
+      "qk_quant": "mxfp8",
+      "v_quant": "fp8_channel",
+      "smoothing": "off",
+      "q_smooth_block_size": 256,
+      "q_kmeans_k": null,
+      "q_kmeans_iters": 10,
+      "q_kmeans_seed": 0,
+      "qk_hadamard": false,
+      "qk_hadamard_random_sign": true,
+      "qk_hadamard_seed": 0,
+      "fp8_block_size": 128,
+      "mxfp8_block_size": 32,
+      "v_fp8_block_size": 64,
+      "v_mxfp8_block_size": 64,
+      "p_quant": "elementwise",
+      "rowmax_mode": "online",
+      "p_mx_block_n": 0,
+      "p_max_offset": 8,
+      "correction_dtype": "torch.float16",
+      "p_requant": false,
+      "p_requant_q_chunk": 512,
+      "p_requant_block_m": 64,
+      "p_requant_block_n": 64,
+      "v_smooth_mode": "off",
+      "v_smooth_block_size": 64,
+      "v_kmeans_k": null,
+      "v_kmeans_iters": 10,
+      "v_kmeans_seed": 0
+    },
+    "mxfp8_hadamard": {
+      "qk_quant": "mxfp8",
+      "v_quant": "fp8_channel",
+      "smoothing": "off",
+      "q_smooth_block_size": 256,
+      "q_kmeans_k": null,
+      "q_kmeans_iters": 10,
+      "q_kmeans_seed": 0,
+      "qk_hadamard": true,
+      "qk_hadamard_random_sign": true,
+      "qk_hadamard_seed": 0,
+      "fp8_block_size": 128,
+      "mxfp8_block_size": 32,
+      "v_fp8_block_size": 64,
+      "v_mxfp8_block_size": 64,
+      "p_quant": "elementwise",
+      "rowmax_mode": "online",
+      "p_mx_block_n": 0,
+      "p_max_offset": 8,
+      "correction_dtype": "torch.float16",
+      "p_requant": false,
+      "p_requant_q_chunk": 512,
+      "p_requant_block_m": 64,
+      "p_requant_block_n": 64,
+      "v_smooth_mode": "off",
+      "v_smooth_block_size": 64,
+      "v_kmeans_k": null,
+      "v_kmeans_iters": 10,
+      "v_kmeans_seed": 0
+    }
+  },
+  "workloads": [
+    {
+      "layer": "layer_0",
+      "timestep": "timestep_0",
+      "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_0/timestep_0.pt",
+      "shape": [
+        1,
+        69120,
+        40,
+        128
+      ],
+      "reference_seconds": 0.5600166320800781,
+      "configs": {
+        "fp8_block_base": {
+          "qk_score_metrics": {
+            "mse": 1.7071176767349243,
+            "rmse": 1.3065671344155738,
+            "cosine": 0.9997805014203829,
+            "max_abs_err": 15.553953170776367
+          },
+          "attention_metrics": {
+            "mse": 0.0020950515754520893,
+            "rmse": 0.045771733367353365,
+            "cosine": 0.9945032126909157,
+            "max_abs_err": 2.21875
+          },
+          "seconds": 1.4594390392303467
+        },
+        "fp8_block_hadamard": {
+          "qk_score_metrics": {
+            "mse": 0.3773564398288727,
+            "rmse": 0.6142934476525634,
+            "cosine": 0.9999527388632306,
+            "max_abs_err": 7.547576904296875
+          },
+          "attention_metrics": {
+            "mse": 0.0009121809853240848,
+            "rmse": 0.030202334103908008,
+            "cosine": 0.997602297915666,
+            "max_abs_err": 1.46875
+          },
+          "seconds": 1.2050738334655762
+        },
+        "mxfp8_base": {
+          "qk_score_metrics": {
+            "mse": 1.773476004600525,
+            "rmse": 1.3317191913464808,
+            "cosine": 0.9997721421811855,
+            "max_abs_err": 17.119131088256836
+          },
+          "attention_metrics": {
+            "mse": 0.001990937627851963,
+            "rmse": 0.04461992411302335,
+            "cosine": 0.9947734779128652,
+            "max_abs_err": 2.046875
+          },
+          "seconds": 0.9419248104095459
+        },
+        "mxfp8_hadamard": {
+          "qk_score_metrics": {
+            "mse": 0.3788021504878998,
+            "rmse": 0.6154690491713615,
+            "cosine": 0.9999528079683998,
+            "max_abs_err": 7.9979400634765625
+          },
+          "attention_metrics": {
+            "mse": 0.0008994842646643519,
+            "rmse": 0.029991403179317103,
+            "cosine": 0.9976351987489717,
+            "max_abs_err": 1.62109375
+          },
+          "seconds": 1.2159876823425293
+        }
+      }
+    },
+    {
+      "layer": "layer_0",
+      "timestep": "timestep_29",
+      "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_0/timestep_29.pt",
+      "shape": [
+        1,
+        69120,
+        40,
+        128
+      ],
+      "reference_seconds": 0.5423157215118408,
+      "configs": {
+        "fp8_block_base": {
+          "qk_score_metrics": {
+            "mse": 2.2242238521575928,
+            "rmse": 1.4913832009773988,
+            "cosine": 0.999803491691033,
+            "max_abs_err": 17.927505493164062
+          },
+          "attention_metrics": {
+            "mse": 0.0016491119749844074,
+            "rmse": 0.04060925971972904,
+            "cosine": 0.9982659405545573,
+            "max_abs_err": 1.95703125
+          },
+          "seconds": 0.9058773517608643
+        },
+        "fp8_block_hadamard": {
+          "qk_score_metrics": {
+            "mse": 0.4832395613193512,
+            "rmse": 0.6951543435233295,
+            "cosine": 0.9999584039965629,
+            "max_abs_err": 9.1151123046875
+          },
+          "attention_metrics": {
+            "mse": 0.0007427338277921081,
+            "rmse": 0.027253143447905383,
+            "cosine": 0.9992195933897613,
+            "max_abs_err": 1.21875
+          },
+          "seconds": 1.1986033916473389
+        },
+        "mxfp8_base": {
+          "qk_score_metrics": {
+            "mse": 2.5648598670959473,
+            "rmse": 1.6015179883772606,
+            "cosine": 0.9997739547140972,
+            "max_abs_err": 19.881702423095703
+          },
+          "attention_metrics": {
+            "mse": 0.0015780547400936484,
+            "rmse": 0.039724737130579585,
+            "cosine": 0.9983408371423724,
+            "max_abs_err": 1.796875
+          },
+          "seconds": 0.9287850856781006
+        },
+        "mxfp8_hadamard": {
+          "qk_score_metrics": {
+            "mse": 0.4815075099468231,
+            "rmse": 0.6939074217406982,
+            "cosine": 0.999959139251818,
+            "max_abs_err": 9.291618347167969
+          },
+          "attention_metrics": {
+            "mse": 0.0007316740811802447,
+            "rmse": 0.02704947469324025,
+            "cosine": 0.9992312816695922,
+            "max_abs_err": 1.2109375
+          },
+          "seconds": 1.2224571704864502
+        }
+      }
+    },
+    {
+      "layer": "layer_0",
+      "timestep": "timestep_3",
+      "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_0/timestep_3.pt",
+      "shape": [
+        1,
+        69120,
+        40,
+        128
+      ],
+      "reference_seconds": 0.5417754650115967,
+      "configs": {
+        "fp8_block_base": {
+          "qk_score_metrics": {
+            "mse": 1.7733532190322876,
+            "rmse": 1.3316730901509903,
+            "cosine": 0.9997843812789392,
+            "max_abs_err": 15.523284912109375
+          },
+          "attention_metrics": {
+            "mse": 0.002156664617359638,
+            "rmse": 0.04643990328757843,
+            "cosine": 0.9947240301379712,
+            "max_abs_err": 2.171875
+          },
+          "seconds": 0.9007222652435303
+        },
+        "fp8_block_hadamard": {
+          "qk_score_metrics": {
+            "mse": 0.39308416843414307,
+            "rmse": 0.6269642481307391,
+            "cosine": 0.9999531562832791,
+            "max_abs_err": 9.645767211914062
+          },
+          "attention_metrics": {
+            "mse": 0.0009347758605144918,
+            "rmse": 0.030574104410669035,
+            "cosine": 0.9977100085867279,
+            "max_abs_err": 1.421875
+          },
+          "seconds": 1.1911659240722656
+        },
+        "mxfp8_base": {
+          "qk_score_metrics": {
+            "mse": 1.8650020360946655,
+            "rmse": 1.3656507738417847,
+            "cosine": 0.9997728311917239,
+            "max_abs_err": 16.698619842529297
+          },
+          "attention_metrics": {
+            "mse": 0.00203260057605803,
+            "rmse": 0.045084371749621065,
+            "cosine": 0.9950248743510943,
+            "max_abs_err": 1.92578125
+          },
+          "seconds": 0.9269556999206543
+        },
+        "mxfp8_hadamard": {
+          "qk_score_metrics": {
+            "mse": 0.39295610785484314,
+            "rmse": 0.6268621123140584,
+            "cosine": 0.9999538819401614,
+            "max_abs_err": 7.7064666748046875
+          },
+          "attention_metrics": {
+            "mse": 0.0009261769009754062,
+            "rmse": 0.030433154633974543,
+            "cosine": 0.997730711850593,
+            "max_abs_err": 1.37109375
+          },
+          "seconds": 1.2182276248931885
+        }
+      }
+    },
+    {
+      "layer": "layer_0",
+      "timestep": "timestep_49",
+      "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_0/timestep_49.pt",
+      "shape": [
+        1,
+        69120,
+        40,
+        128
+      ],
+      "reference_seconds": 0.5343446731567383,
+      "configs": {
+        "fp8_block_base": {
+          "qk_score_metrics": {
+            "mse": 2.9403374195098877,
+            "rmse": 1.7147412106524669,
+            "cosine": 0.9997984248142912,
+            "max_abs_err": 21.817153930664062
+          },
+          "attention_metrics": {
+            "mse": 0.0004349626542534679,
+            "rmse": 0.020855758299651153,
+            "cosine": 0.999697165884764,
+            "max_abs_err": 1.46875
+          },
+          "seconds": 0.8979630470275879
+        },
+        "fp8_block_hadamard": {
+          "qk_score_metrics": {
+            "mse": 0.5922056436538696,
+            "rmse": 0.769548987169673,
+            "cosine": 0.9999604484209514,
+            "max_abs_err": 10.503936767578125
+          },
+          "attention_metrics": {
+            "mse": 0.00024325688718818128,
+            "rmse": 0.015596694752035806,
+            "cosine": 0.9998306732335546,
+            "max_abs_err": 0.7890625
+          },
+          "seconds": 1.1908910274505615
+        },
+        "mxfp8_base": {
+          "qk_score_metrics": {
+            "mse": 3.1185834407806396,
+            "rmse": 1.7659511433730661,
+            "cosine": 0.9997864050878279,
+            "max_abs_err": 26.63709259033203
+          },
+          "attention_metrics": {
+            "mse": 0.0004577978397719562,
+            "rmse": 0.02139621087417013,
+            "cosine": 0.999681458032958,
+            "max_abs_err": 1.65625
+          },
+          "seconds": 0.9120383262634277
+        },
+        "mxfp8_hadamard": {
+          "qk_score_metrics": {
+            "mse": 0.5934929847717285,
+            "rmse": 0.7703849588171673,
+            "cosine": 0.9999609364935538,
+            "max_abs_err": 11.656097412109375
+          },
+          "attention_metrics": {
+            "mse": 0.0002405065024504438,
+            "rmse": 0.015508272065270322,
+            "cosine": 0.999832684400193,
+            "max_abs_err": 0.716796875
+          },
+          "seconds": 1.2158629894256592
+        }
+      }
+    },
+    {
+      "layer": "layer_0",
+      "timestep": "timestep_6",
+      "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_0/timestep_6.pt",
+      "shape": [
+        1,
+        69120,
+        40,
+        128
+      ],
+      "reference_seconds": 0.538616418838501,
+      "configs": {
+        "fp8_block_base": {
+          "qk_score_metrics": {
+            "mse": 1.865271806716919,
+            "rmse": 1.3657495402587252,
+            "cosine": 0.9997887906413144,
+            "max_abs_err": 16.860288619995117
+          },
+          "attention_metrics": {
+            "mse": 0.0021971119567751884,
+            "rmse": 0.046873360843609116,
+            "cosine": 0.9950866807697997,
+            "max_abs_err": 2.328125
+          },
+          "seconds": 0.9058003425598145
+        },
+        "fp8_block_hadamard": {
+          "qk_score_metrics": {
+            "mse": 0.40966224670410156,
+            "rmse": 0.6400486283901415,
+            "cosine": 0.9999547309180348,
+            "max_abs_err": 8.958381652832031
+          },
+          "attention_metrics": {
+            "mse": 0.0009440212743356824,
+            "rmse": 0.030724929199848164,
+            "cosine": 0.997887768966546,
+            "max_abs_err": 1.390625
+          },
+          "seconds": 1.1946074962615967
+        },
+        "mxfp8_base": {
+          "qk_score_metrics": {
+            "mse": 2.009540319442749,
+            "rmse": 1.4175825617729463,
+            "cosine": 0.999771739823003,
+            "max_abs_err": 17.6154727935791
+          },
+          "attention_metrics": {
+            "mse": 0.002088477136567235,
+            "rmse": 0.04569985926200687,
+            "cosine": 0.9953289020825719,
+            "max_abs_err": 2.234375
+          },
+          "seconds": 0.9277656078338623
+        },
+        "mxfp8_hadamard": {
+          "qk_score_metrics": {
+            "mse": 0.41164541244506836,
+            "rmse": 0.6415959884889153,
+            "cosine": 0.9999548159381966,
+            "max_abs_err": 8.365135192871094
+          },
+          "attention_metrics": {
+            "mse": 0.0009300106321461499,
+            "rmse": 0.03049607568435896,
+            "cosine": 0.9979189373298977,
+            "max_abs_err": 1.40625
+          },
+          "seconds": 1.2198925018310547
+        }
+      }
+    },
+    {
+      "layer": "layer_0",
+      "timestep": "timestep_9",
+      "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_0/timestep_9.pt",
+      "shape": [
+        1,
+        69120,
+        40,
+        128
+      ],
+      "reference_seconds": 0.5407547950744629,
+      "configs": {
+        "fp8_block_base": {
+          "qk_score_metrics": {
+            "mse": 1.941141963005066,
+            "rmse": 1.3932487082373577,
+            "cosine": 0.9997901884382375,
+            "max_abs_err": 17.08936309814453
+          },
+          "attention_metrics": {
+            "mse": 0.002174883848056197,
+            "rmse": 0.04663564996926919,
+            "cosine": 0.9955303579973354,
+            "max_abs_err": 2.03125
+          },
+          "seconds": 0.90230393409729
+        },
+        "fp8_block_hadamard": {
+          "qk_score_metrics": {
+            "mse": 0.4253915250301361,
+            "rmse": 0.6522204573839555,
+            "cosine": 0.9999550462626453,
+            "max_abs_err": 8.7080078125
+          },
+          "attention_metrics": {
+            "mse": 0.0009373158100061119,
+            "rmse": 0.030615613827034593,
+            "cosine": 0.9980735357696076,
+            "max_abs_err": 1.453125
+          },
+          "seconds": 1.1903002262115479
+        },
+        "mxfp8_base": {
+          "qk_score_metrics": {
+            "mse": 2.1436831951141357,
+            "rmse": 1.464132232796661,
+            "cosine": 0.9997678320860098,
+            "max_abs_err": 18.83745574951172
+          },
+          "attention_metrics": {
+            "mse": 0.002079558093100786,
+            "rmse": 0.0456021720217446,
+            "cosine": 0.9957261343680293,
+            "max_abs_err": 1.9375
+          },
+          "seconds": 0.9317209720611572
+        },
+        "mxfp8_hadamard": {
+          "qk_score_metrics": {
+            "mse": 0.42619138956069946,
+            "rmse": 0.6528333551226526,
+            "cosine": 0.999955720471134,
+            "max_abs_err": 9.234046936035156
+          },
+          "attention_metrics": {
+            "mse": 0.0009228004491887987,
+            "rmse": 0.030377630736922172,
+            "cosine": 0.998103202960471,
+            "max_abs_err": 1.4375
+          },
+          "seconds": 1.226928949356079
+        }
+      }
+    },
+    {
+      "layer": "layer_30",
+      "timestep": "timestep_0",
+      "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_30/timestep_0.pt",
+      "shape": [
+        1,
+        69120,
+        40,
+        128
+      ],
+      "reference_seconds": 0.5419332981109619,
+      "configs": {
+        "fp8_block_base": {
+          "qk_score_metrics": {
+            "mse": 0.7085818648338318,
+            "rmse": 0.8417730482937974,
+            "cosine": 0.9998390785034516,
+            "max_abs_err": 15.679931640625
+          },
+          "attention_metrics": {
+            "mse": 2.6460615117684938e-05,
+            "rmse": 0.005143988250150357,
+            "cosine": 0.999628111906901,
+            "max_abs_err": 0.3671875
+          },
+          "seconds": 0.9013981819152832
+        },
+        "fp8_block_hadamard": {
+          "qk_score_metrics": {
+            "mse": 0.4628625810146332,
+            "rmse": 0.6803400480749558,
+            "cosine": 0.9998953633183124,
+            "max_abs_err": 9.304420471191406
+          },
+          "attention_metrics": {
+            "mse": 1.1918267773580737e-05,
+            "rmse": 0.0034522844282562724,
+            "cosine": 0.9998329150107416,
+            "max_abs_err": 0.184326171875
+          },
+          "seconds": 1.1908848285675049
+        },
+        "mxfp8_base": {
+          "qk_score_metrics": {
+            "mse": 0.6975885033607483,
+            "rmse": 0.8352176383199461,
+            "cosine": 0.9998416784888923,
+            "max_abs_err": 14.934398651123047
+          },
+          "attention_metrics": {
+            "mse": 2.5546407414367422e-05,
+            "rmse": 0.005054345399195372,
+            "cosine": 0.9996409666171847,
+            "max_abs_err": 0.33935546875
+          },
+          "seconds": 0.9279186725616455
+        },
+        "mxfp8_hadamard": {
+          "qk_score_metrics": {
+            "mse": 0.4661915898323059,
+            "rmse": 0.6827822418841207,
+            "cosine": 0.9998948564842546,
+            "max_abs_err": 9.120849609375
+          },
+          "attention_metrics": {
+            "mse": 1.1891635949723423e-05,
+            "rmse": 0.003448425140513191,
+            "cosine": 0.9998333077822998,
+            "max_abs_err": 0.19921875
+          },
+          "seconds": 1.2165935039520264
+        }
+      }
+    },
+    {
+      "layer": "layer_30",
+      "timestep": "timestep_29",
+      "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_30/timestep_29.pt",
+      "shape": [
+        1,
+        69120,
+        40,
+        128
+      ],
+      "reference_seconds": 0.5393028259277344,
+      "configs": {
+        "fp8_block_base": {
+          "qk_score_metrics": {
+            "mse": 0.7589747309684753,
+            "rmse": 0.8711915581365991,
+            "cosine": 0.9998718573561574,
+            "max_abs_err": 16.42694091796875
+          },
+          "attention_metrics": {
+            "mse": 0.00013983955432195216,
+            "rmse": 0.011825377555154514,
+            "cosine": 0.9995054128918223,
+            "max_abs_err": 0.7421875
+          },
+          "seconds": 0.902348518371582
+        },
+        "fp8_block_hadamard": {
+          "qk_score_metrics": {
+            "mse": 0.4741511344909668,
+            "rmse": 0.6885863304560779,
+            "cosine": 0.9999203154454551,
+            "max_abs_err": 8.737701416015625
+          },
+          "attention_metrics": {
+            "mse": 8.251777035184205e-05,
+            "rmse": 0.009083929235294715,
+            "cosine": 0.9997090224031863,
+            "max_abs_err": 0.4375
+          },
+          "seconds": 1.1984467506408691
+        },
+        "mxfp8_base": {
+          "qk_score_metrics": {
+            "mse": 0.7540764212608337,
+            "rmse": 0.8683757373745732,
+            "cosine": 0.9998730715670604,
+            "max_abs_err": 19.02703857421875
+          },
+          "attention_metrics": {
+            "mse": 0.00013854804274160415,
+            "rmse": 0.011770643259465651,
+            "cosine": 0.9995105338067215,
+            "max_abs_err": 0.859375
+          },
+          "seconds": 0.9301540851593018
+        },
+        "mxfp8_hadamard": {
+          "qk_score_metrics": {
+            "mse": 0.4766708016395569,
+            "rmse": 0.6904135004760241,
+            "cosine": 0.9999204649897098,
+            "max_abs_err": 9.506240844726562
+          },
+          "attention_metrics": {
+            "mse": 8.180709119187668e-05,
+            "rmse": 0.009044727259120458,
+            "cosine": 0.9997117414589249,
+            "max_abs_err": 0.5625
+          },
+          "seconds": 1.220958948135376
+        }
+      }
+    },
+    {
+      "layer": "layer_30",
+      "timestep": "timestep_3",
+      "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_30/timestep_3.pt",
+      "shape": [
+        1,
+        69120,
+        40,
+        128
+      ],
+      "reference_seconds": 0.5407660007476807,
+      "configs": {
+        "fp8_block_base": {
+          "qk_score_metrics": {
+            "mse": 0.7500020861625671,
+            "rmse": 0.8660266082301208,
+            "cosine": 0.999846874197801,
+            "max_abs_err": 13.163200378417969
+          },
+          "attention_metrics": {
+            "mse": 6.678470526821911e-05,
+            "rmse": 0.008172190971105553,
+            "cosine": 0.9995535265260378,
+            "max_abs_err": 0.486328125
+          },
+          "seconds": 0.9019525051116943
+        },
+        "fp8_block_hadamard": {
+          "qk_score_metrics": {
+            "mse": 0.46525031328201294,
+            "rmse": 0.6820925987591516,
+            "cosine": 0.999905368931613,
+            "max_abs_err": 7.1050262451171875
+          },
+          "attention_metrics": {
+            "mse": 3.5033062886213884e-05,
+            "rmse": 0.00591887344738962,
+            "cosine": 0.9997665563335719,
+            "max_abs_err": 0.306640625
+          },
+          "seconds": 1.1909456253051758
+        },
+        "mxfp8_base": {
+          "qk_score_metrics": {
+            "mse": 0.7404715418815613,
+            "rmse": 0.8605065612077349,
+            "cosine": 0.9998489900406646,
+            "max_abs_err": 14.225540161132812
+          },
+          "attention_metrics": {
+            "mse": 6.67256026645191e-05,
+            "rmse": 0.008168574090042834,
+            "cosine": 0.9995540105042334,
+            "max_abs_err": 0.5
+          },
+          "seconds": 0.9276266098022461
+        },
+        "mxfp8_hadamard": {
+          "qk_score_metrics": {
+            "mse": 0.4660029113292694,
+            "rmse": 0.682644059030231,
+            "cosine": 0.9999057848038089,
+            "max_abs_err": 7.82269287109375
+          },
+          "attention_metrics": {
+            "mse": 3.4707238228293136e-05,
+            "rmse": 0.005891284938643957,
+            "cosine": 0.9997688538540596,
+            "max_abs_err": 0.373046875
+          },
+          "seconds": 1.2208452224731445
+        }
+      }
+    },
+    {
+      "layer": "layer_30",
+      "timestep": "timestep_49",
+      "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_30/timestep_49.pt",
+      "shape": [
+        1,
+        69120,
+        40,
+        128
+      ],
+      "reference_seconds": 0.5384752750396729,
+      "configs": {
+        "fp8_block_base": {
+          "qk_score_metrics": {
+            "mse": 0.8771541714668274,
+            "rmse": 0.9365650919540123,
+            "cosine": 0.9998600698801049,
+            "max_abs_err": 14.062408447265625
+          },
+          "attention_metrics": {
+            "mse": 0.0001397978630848229,
+            "rmse": 0.01182361463702293,
+            "cosine": 0.9994837238369876,
+            "max_abs_err": 0.8515625
+          },
+          "seconds": 0.9059083461761475
+        },
+        "fp8_block_hadamard": {
+          "qk_score_metrics": {
+            "mse": 0.48460251092910767,
+            "rmse": 0.6961339748418458,
+            "cosine": 0.9999232150943346,
+            "max_abs_err": 8.30621337890625
+          },
+          "attention_metrics": {
+            "mse": 8.188945503206924e-05,
+            "rmse": 0.009049279254839539,
+            "cosine": 0.9996982152804093,
+            "max_abs_err": 0.5149078369140625
+          },
+          "seconds": 1.1908783912658691
+        },
+        "mxfp8_base": {
+          "qk_score_metrics": {
+            "mse": 0.860057532787323,
+            "rmse": 0.9273928686308317,
+            "cosine": 0.9998632547910973,
+            "max_abs_err": 19.1241455078125
+          },
+          "attention_metrics": {
+            "mse": 0.00013900312478654087,
+            "rmse": 0.011789958642274402,
+            "cosine": 0.999487156617736,
+            "max_abs_err": 0.8515625
+          },
+          "seconds": 0.9316284656524658
+        },
+        "mxfp8_hadamard": {
+          "qk_score_metrics": {
+            "mse": 0.4887380599975586,
+            "rmse": 0.6990980331810115,
+            "cosine": 0.9999229855450379,
+            "max_abs_err": 7.66033935546875
+          },
+          "attention_metrics": {
+            "mse": 8.140335557982326e-05,
+            "rmse": 0.009022380815495612,
+            "cosine": 0.9997001208652165,
+            "max_abs_err": 0.561767578125
+          },
+          "seconds": 1.2196340560913086
+        }
+      }
+    },
+    {
+      "layer": "layer_30",
+      "timestep": "timestep_6",
+      "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_30/timestep_6.pt",
+      "shape": [
+        1,
+        69120,
+        40,
+        128
+      ],
+      "reference_seconds": 0.5512809753417969,
+      "configs": {
+        "fp8_block_base": {
+          "qk_score_metrics": {
+            "mse": 0.7781037092208862,
+            "rmse": 0.8821018700926136,
+            "cosine": 0.999854461177567,
+            "max_abs_err": 13.2503662109375
+          },
+          "attention_metrics": {
+            "mse": 9.204421075992286e-05,
+            "rmse": 0.009593967414991718,
+            "cosine": 0.9995105448063413,
+            "max_abs_err": 0.5966796875
+          },
+          "seconds": 0.9002094268798828
+        },
+        "fp8_block_hadamard": {
+          "qk_score_metrics": {
+            "mse": 0.47162386775016785,
+            "rmse": 0.6867487661074957,
+            "cosine": 0.9999122909018319,
+            "max_abs_err": 8.415512084960938
+          },
+          "attention_metrics": {
+            "mse": 4.732311936095357e-05,
+            "rmse": 0.006879180137265892,
+            "cosine": 0.9997491687835641,
+            "max_abs_err": 0.39453125
+          },
+          "seconds": 1.194493055343628
+        },
+        "mxfp8_base": {
+          "qk_score_metrics": {
+            "mse": 0.7662178874015808,
+            "rmse": 0.8753387272373939,
+            "cosine": 0.9998569523818012,
+            "max_abs_err": 13.585296630859375
+          },
+          "attention_metrics": {
+            "mse": 9.126784425461665e-05,
+            "rmse": 0.009553420552588305,
+            "cosine": 0.9995148117386606,
+            "max_abs_err": 0.7161865234375
+          },
+          "seconds": 0.9239718914031982
+        },
+        "mxfp8_hadamard": {
+          "qk_score_metrics": {
+            "mse": 0.4685574471950531,
+            "rmse": 0.6845125617510998,
+            "cosine": 0.999913282830396,
+            "max_abs_err": 7.656593322753906
+          },
+          "attention_metrics": {
+            "mse": 4.708010965259746e-05,
+            "rmse": 0.00686149470979884,
+            "cosine": 0.9997506762351414,
+            "max_abs_err": 0.4267578125
+          },
+          "seconds": 1.2240800857543945
+        }
+      }
+    },
+    {
+      "layer": "layer_30",
+      "timestep": "timestep_9",
+      "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_30/timestep_9.pt",
+      "shape": [
+        1,
+        69120,
+        40,
+        128
+      ],
+      "reference_seconds": 0.5395157337188721,
+      "configs": {
+        "fp8_block_base": {
+          "qk_score_metrics": {
+            "mse": 0.7619737982749939,
+            "rmse": 0.8729111055972388,
+            "cosine": 0.9998601691022174,
+            "max_abs_err": 14.075027465820312
+          },
+          "attention_metrics": {
+            "mse": 0.00010355364065617323,
+            "rmse": 0.010176130927625354,
+            "cosine": 0.999507406269562,
+            "max_abs_err": 0.625
+          },
+          "seconds": 0.9026315212249756
+        },
+        "fp8_block_hadamard": {
+          "qk_score_metrics": {
+            "mse": 0.47030219435691833,
+            "rmse": 0.6857858225108757,
+            "cosine": 0.999914317775375,
+            "max_abs_err": 8.523590087890625
+          },
+          "attention_metrics": {
+            "mse": 5.514708755072206e-05,
+            "rmse": 0.007426108506527632,
+            "cosine": 0.999738458736365,
+            "max_abs_err": 0.359375
+          },
+          "seconds": 1.1956005096435547
+        },
+        "mxfp8_base": {
+          "qk_score_metrics": {
+            "mse": 0.7547364234924316,
+            "rmse": 0.8687556753727895,
+            "cosine": 0.9998618406252079,
+            "max_abs_err": 14.405860900878906
+          },
+          "attention_metrics": {
+            "mse": 0.00010257661051582545,
+            "rmse": 0.010128011182647136,
+            "cosine": 0.9995122502274614,
+            "max_abs_err": 0.6953125
+          },
+          "seconds": 0.9269778728485107
+        },
+        "mxfp8_hadamard": {
+          "qk_score_metrics": {
+            "mse": 0.4707889258861542,
+            "rmse": 0.6861406021262364,
+            "cosine": 0.9999143878415434,
+            "max_abs_err": 7.729766845703125
+          },
+          "attention_metrics": {
+            "mse": 5.4938085668254644e-05,
+            "rmse": 0.0074120230482813965,
+            "cosine": 0.9997397405027787,
+            "max_abs_err": 0.361328125
+          },
+          "seconds": 1.2209181785583496
+        }
+      }
+    },
+    {
+      "layer": "layer_39",
+      "timestep": "timestep_0",
+      "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_39/timestep_0.pt",
+      "shape": [
+        1,
+        69120,
+        40,
+        128
+      ],
+      "reference_seconds": 0.5392887592315674,
+      "configs": {
+        "fp8_block_base": {
+          "qk_score_metrics": {
+            "mse": 25.938232421875,
+            "rmse": 5.092959102709838,
+            "cosine": 0.99993090036778,
+            "max_abs_err": 164.11962890625
+          },
+          "attention_metrics": {
+            "mse": 4.6227898565120995e-05,
+            "rmse": 0.0067991101303862544,
+            "cosine": 0.9998092839957976,
+            "max_abs_err": 2.103515625
+          },
+          "seconds": 0.897850751876831
+        },
+        "fp8_block_hadamard": {
+          "qk_score_metrics": {
+            "mse": 10.077486038208008,
+            "rmse": 3.1745056368209537,
+            "cosine": 0.9999733398293403,
+            "max_abs_err": 115.753173828125
+          },
+          "attention_metrics": {
+            "mse": 1.9180088202119805e-05,
+            "rmse": 0.004379507757970045,
+            "cosine": 0.9999207495868246,
+            "max_abs_err": 1.580078125
+          },
+          "seconds": 1.1906709671020508
+        },
+        "mxfp8_base": {
+          "qk_score_metrics": {
+            "mse": 25.67548179626465,
+            "rmse": 5.0670979659233595,
+            "cosine": 0.9999307581964187,
+            "max_abs_err": 171.555419921875
+          },
+          "attention_metrics": {
+            "mse": 5.4324755183188245e-05,
+            "rmse": 0.007370532896825591,
+            "cosine": 0.9997758546167219,
+            "max_abs_err": 2.34375
+          },
+          "seconds": 0.9270524978637695
+        },
+        "mxfp8_hadamard": {
+          "qk_score_metrics": {
+            "mse": 9.905506134033203,
+            "rmse": 3.1473014050187826,
+            "cosine": 0.9999741400620107,
+            "max_abs_err": 126.4482421875
+          },
+          "attention_metrics": {
+            "mse": 1.8563099729362875e-05,
+            "rmse": 0.004308491583995828,
+            "cosine": 0.9999232996831827,
+            "max_abs_err": 1.818359375
+          },
+          "seconds": 1.212493658065796
+        }
+      }
+    },
+    {
+      "layer": "layer_39",
+      "timestep": "timestep_29",
+      "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_39/timestep_29.pt",
+      "shape": [
+        1,
+        69120,
+        40,
+        128
+      ],
+      "reference_seconds": 0.5375967025756836,
+      "configs": {
+        "fp8_block_base": {
+          "qk_score_metrics": {
+            "mse": 27.535856246948242,
+            "rmse": 5.247461886183475,
+            "cosine": 0.9999120599375975,
+            "max_abs_err": 171.89794921875
+          },
+          "attention_metrics": {
+            "mse": 0.0002925243752542883,
+            "rmse": 0.01710334397871622,
+            "cosine": 0.9989280037638777,
+            "max_abs_err": 4.58203125
+          },
+          "seconds": 0.9012660980224609
+        },
+        "fp8_block_hadamard": {
+          "qk_score_metrics": {
+            "mse": 9.651344299316406,
+            "rmse": 3.10666127849761,
+            "cosine": 0.9999704984582658,
+            "max_abs_err": 117.522705078125
+          },
+          "attention_metrics": {
+            "mse": 0.00011390709551051259,
+            "rmse": 0.010672726713943002,
+            "cosine": 0.9995828157785719,
+            "max_abs_err": 2.51171875
+          },
+          "seconds": 1.1903588771820068
+        },
+        "mxfp8_base": {
+          "qk_score_metrics": {
+            "mse": 27.2215633392334,
+            "rmse": 5.21742880538234,
+            "cosine": 0.9999125085469122,
+            "max_abs_err": 172.84716796875
+          },
+          "attention_metrics": {
+            "mse": 0.0003245155094191432,
+            "rmse": 0.0180143140146702,
+            "cosine": 0.9988106680189286,
+            "max_abs_err": 5.0859375
+          },
+          "seconds": 0.9273488521575928
+        },
+        "mxfp8_hadamard": {
+          "qk_score_metrics": {
+            "mse": 9.235480308532715,
+            "rmse": 3.038993305114823,
+            "cosine": 0.9999718846508776,
+            "max_abs_err": 128.00634765625
+          },
+          "attention_metrics": {
+            "mse": 0.00011198617721674964,
+            "rmse": 0.010582352158983826,
+            "cosine": 0.9995899604721175,
+            "max_abs_err": 2.8284912109375
+          },
+          "seconds": 1.2087082862854004
+        }
+      }
+    },
+    {
+      "layer": "layer_39",
+      "timestep": "timestep_3",
+      "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_39/timestep_3.pt",
+      "shape": [
+        1,
+        69120,
+        40,
+        128
+      ],
+      "reference_seconds": 0.5393202304840088,
+      "configs": {
+        "fp8_block_base": {
+          "qk_score_metrics": {
+            "mse": 35.39623260498047,
+            "rmse": 5.9494733048380395,
+            "cosine": 0.999923458289778,
+            "max_abs_err": 192.7921142578125
+          },
+          "attention_metrics": {
+            "mse": 9.402269643032923e-05,
+            "rmse": 0.00969653012321053,
+            "cosine": 0.9994877948896576,
+            "max_abs_err": 3.685546875
+          },
+          "seconds": 0.8984460830688477
+        },
+        "fp8_block_hadamard": {
+          "qk_score_metrics": {
+            "mse": 13.510309219360352,
+            "rmse": 3.675637253505894,
+            "cosine": 0.9999711455467554,
+            "max_abs_err": 136.1015625
+          },
+          "attention_metrics": {
+            "mse": 4.403474667924456e-05,
+            "rmse": 0.0066358681933296835,
+            "cosine": 0.9997602026257749,
+            "max_abs_err": 1.28515625
+          },
+          "seconds": 1.1906383037567139
+        },
+        "mxfp8_base": {
+          "qk_score_metrics": {
+            "mse": 33.587989807128906,
+            "rmse": 5.7955146283249865,
+            "cosine": 0.9999275141793866,
+            "max_abs_err": 192.033203125
+          },
+          "attention_metrics": {
+            "mse": 9.734886407386512e-05,
+            "rmse": 0.009866552795878869,
+            "cosine": 0.9994696125901469,
+            "max_abs_err": 2.328125
+          },
+          "seconds": 0.9382610321044922
+        },
+        "mxfp8_hadamard": {
+          "qk_score_metrics": {
+            "mse": 13.289271354675293,
+            "rmse": 3.6454452889428053,
+            "cosine": 0.9999731355429234,
+            "max_abs_err": 130.52587890625
+          },
+          "attention_metrics": {
+            "mse": 4.3467411160236225e-05,
+            "rmse": 0.0065929819626809405,
+            "cosine": 0.9997634562386337,
+            "max_abs_err": 1.6043701171875
+          },
+          "seconds": 1.2158939838409424
+        }
+      }
+    },
+    {
+      "layer": "layer_39",
+      "timestep": "timestep_49",
+      "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_39/timestep_49.pt",
+      "shape": [
+        1,
+        69120,
+        40,
+        128
+      ],
+      "reference_seconds": 0.5374422073364258,
+      "configs": {
+        "fp8_block_base": {
+          "qk_score_metrics": {
+            "mse": 3.825601577758789,
+            "rmse": 1.9559145118738674,
+            "cosine": 0.9998681407030383,
+            "max_abs_err": 56.86376953125
+          },
+          "attention_metrics": {
+            "mse": 0.0004348942020442337,
+            "rmse": 0.020854117148520906,
+            "cosine": 0.9987946157754748,
+            "max_abs_err": 1.87109375
+          },
+          "seconds": 0.9016439914703369
+        },
+        "fp8_block_hadamard": {
+          "qk_score_metrics": {
+            "mse": 1.2433435916900635,
+            "rmse": 1.1150531788619158,
+            "cosine": 0.9999577480690052,
+            "max_abs_err": 39.8880615234375
+          },
+          "attention_metrics": {
+            "mse": 0.00020151404896751046,
+            "rmse": 0.014195564411727717,
+            "cosine": 0.9994419937538198,
+            "max_abs_err": 0.765625
+          },
+          "seconds": 1.1911351680755615
+        },
+        "mxfp8_base": {
+          "qk_score_metrics": {
+            "mse": 3.9209725856781006,
+            "rmse": 1.9801445870638086,
+            "cosine": 0.9998668507522537,
+            "max_abs_err": 64.70947265625
+          },
+          "attention_metrics": {
+            "mse": 0.00044593276106752455,
+            "rmse": 0.02111712009407354,
+            "cosine": 0.9987640310134788,
+            "max_abs_err": 1.96875
+          },
+          "seconds": 0.9267041683197021
+        },
+        "mxfp8_hadamard": {
+          "qk_score_metrics": {
+            "mse": 1.2473676204681396,
+            "rmse": 1.1168561323949202,
+            "cosine": 0.9999587138054422,
+            "max_abs_err": 42.3421630859375
+          },
+          "attention_metrics": {
+            "mse": 0.000197491972357966,
+            "rmse": 0.014053183708966663,
+            "cosine": 0.9994532799463697,
+            "max_abs_err": 2.22265625
+          },
+          "seconds": 1.2198710441589355
+        }
+      }
+    },
+    {
+      "layer": "layer_39",
+      "timestep": "timestep_6",
+      "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_39/timestep_6.pt",
+      "shape": [
+        1,
+        69120,
+        40,
+        128
+      ],
+      "reference_seconds": 0.5412447452545166,
+      "configs": {
+        "fp8_block_base": {
+          "qk_score_metrics": {
+            "mse": 35.810298919677734,
+            "rmse": 5.984170696067896,
+            "cosine": 0.9999144024778107,
+            "max_abs_err": 185.5196533203125
+          },
+          "attention_metrics": {
+            "mse": 0.00015783005801495165,
+            "rmse": 0.012563043342078847,
+            "cosine": 0.9992210741120143,
+            "max_abs_err": 4.4140625
+          },
+          "seconds": 0.8983540534973145
+        },
+        "fp8_block_hadamard": {
+          "qk_score_metrics": {
+            "mse": 12.834136009216309,
+            "rmse": 3.5824762398676575,
+            "cosine": 0.9999704288327993,
+            "max_abs_err": 129.053466796875
+          },
+          "attention_metrics": {
+            "mse": 6.065390698495321e-05,
+            "rmse": 0.0077880618246745584,
+            "cosine": 0.9997008987923667,
+            "max_abs_err": 2.37109375
+          },
+          "seconds": 1.195730447769165
+        },
+        "mxfp8_base": {
+          "qk_score_metrics": {
+            "mse": 33.69004440307617,
+            "rmse": 5.804312569381164,
+            "cosine": 0.9999202425177777,
+            "max_abs_err": 178.39599609375
+          },
+          "attention_metrics": {
+            "mse": 0.00018214138981420547,
+            "rmse": 0.013495976801039837,
+            "cosine": 0.9991012336380264,
+            "max_abs_err": 2.9609375
+          },
+          "seconds": 0.9271941184997559
+        },
+        "mxfp8_hadamard": {
+          "qk_score_metrics": {
+            "mse": 12.27774429321289,
+            "rmse": 3.5039612288398527,
+            "cosine": 0.9999727498594733,
+            "max_abs_err": 128.490234375
+          },
+          "attention_metrics": {
+            "mse": 5.9989459259668365e-05,
+            "rmse": 0.007745286260666443,
+            "cosine": 0.9997042482759716,
+            "max_abs_err": 2.04296875
+          },
+          "seconds": 1.2136974334716797
+        }
+      }
+    },
+    {
+      "layer": "layer_39",
+      "timestep": "timestep_9",
+      "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_39/timestep_9.pt",
+      "shape": [
+        1,
+        69120,
+        40,
+        128
+      ],
+      "reference_seconds": 0.5377347469329834,
+      "configs": {
+        "fp8_block_base": {
+          "qk_score_metrics": {
+            "mse": 36.6795654296875,
+            "rmse": 6.056365694844351,
+            "cosine": 0.9999080012466103,
+            "max_abs_err": 193.45654296875
+          },
+          "attention_metrics": {
+            "mse": 0.0001932005543494597,
+            "rmse": 0.01389966022424504,
+            "cosine": 0.9991347366258664,
+            "max_abs_err": 4.0390625
+          },
+          "seconds": 0.9026894569396973
+        },
+        "fp8_block_hadamard": {
+          "qk_score_metrics": {
+            "mse": 12.39685344696045,
+            "rmse": 3.520916563476114,
+            "cosine": 0.9999705773163025,
+            "max_abs_err": 118.9873046875
+          },
+          "attention_metrics": {
+            "mse": 7.521663792431355e-05,
+            "rmse": 0.008672752615191646,
+            "cosine": 0.9996633775386452,
+            "max_abs_err": 2.48828125
+          },
+          "seconds": 1.1954598426818848
+        },
+        "mxfp8_base": {
+          "qk_score_metrics": {
+            "mse": 32.488616943359375,
+            "rmse": 5.699878677950907,
+            "cosine": 0.9999195565775002,
+            "max_abs_err": 190.3812255859375
+          },
+          "attention_metrics": {
+            "mse": 0.0002186095662182197,
+            "rmse": 0.014785451167219068,
+            "cosine": 0.9990209429770933,
+            "max_abs_err": 2.8984375
+          },
+          "seconds": 0.9259462356567383
+        },
+        "mxfp8_hadamard": {
+          "qk_score_metrics": {
+            "mse": 12.092994689941406,
+            "rmse": 3.4774983378775906,
+            "cosine": 0.9999717291934538,
+            "max_abs_err": 166.337890625
+          },
+          "attention_metrics": {
+            "mse": 7.265000749612227e-05,
+            "rmse": 0.008523497374676798,
+            "cosine": 0.9996749187847351,
+            "max_abs_err": 2.234375
+          },
+          "seconds": 1.2199671268463135
+        }
+      }
+    }
+  ],
+  "summary": {
+    "fp8_block_base": {
+      "count": 18,
+      "attention_mse_mean": 0.000694164833374897,
+      "attention_cosine_mean": 0.9983539790797601,
+      "qk_score_mse_mean": 10.126223527722889,
+      "qk_score_cosine_mean": 0.9998519584180063,
+      "seconds_mean": 0.9326002730263604
+    },
+    "fp8_block_hadamard": {
+      "count": 18,
+      "attention_mse_mean": 0.00030792332957692753,
+      "attention_cosine_mean": 0.9992715695825392,
+      "qk_score_mse_mean": 3.6235113773081036,
+      "qk_score_cosine_mean": 0.9999455074591164,
+      "seconds_mean": 1.1936602592468262
+    },
+    "mxfp8_base": {
+      "count": 18,
+      "attention_mse_mean": 0.0006729981384220688,
+      "attention_cosine_mean": 0.9983909864586824,
+      "qk_score_mse_mean": 9.701831224891874,
+      "qk_score_cosine_mean": 0.9998482290971568,
+      "seconds_mean": 0.9283319446775649
+    },
+    "mxfp8_hadamard": {
+      "count": 18,
+      "attention_mse_mean": 0.0003037015818942261,
+      "attention_cosine_mean": 0.999281423392175,
+      "qk_score_mse_mean": 3.531661649545034,
+      "qk_score_cosine_mean": 0.9999461898706775,
+      "seconds_mean": 1.2185010247760348
+    },
+    "comparisons": {
+      "fp8_block": {
+        "qk_score_mse_rel_delta": -0.6421655746204002,
+        "attention_mse_rel_delta": -0.5564117990825564,
+        "qk_score_cosine_delta": 9.354904111003037e-05,
+        "attention_cosine_delta": 0.0009175905027790643
+      },
+      "mxfp8": {
+        "qk_score_mse_rel_delta": -0.6359798920760555,
+        "attention_mse_rel_delta": -0.5487333997590339,
+        "qk_score_cosine_delta": 9.79607735207555e-05,
+        "attention_cosine_delta": 0.0008904369334925555
+      }
+    }
+  }
+}

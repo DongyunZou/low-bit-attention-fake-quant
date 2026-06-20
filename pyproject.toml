@@ -36,6 +36,9 @@ bench = [
     "einops>=0.8",
     "lpips>=0.1.4",
 ]
+hadamard = [
+    "fast-hadamard-transform>=1.0.4",
+]
 
 [build-system]
 requires = ["hatchling>=1.27"]
@@ -56,6 +59,10 @@ url = "https://download.pytorch.org/whl/test/cu132"
 [tool.uv.sources]
 torch = [{ index = "pytorch-test-cu132" }]
 flash-kmeans = { git = "https://github.com/svg-project/flash-kmeans" }
+fast-hadamard-transform = { git = "https://github.com/Dao-AILab/fast-hadamard-transform.git" }
+
+[tool.uv.extra-build-dependencies]
+fast-hadamard-transform = [{ requirement = "torch", match-runtime = true }]
 
 [tool.ruff]
 line-length = 100

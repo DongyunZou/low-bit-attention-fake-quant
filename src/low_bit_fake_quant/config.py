@@ -44,6 +44,14 @@ class QuantConfig:
     q_kmeans_k: int | None = 32
     q_kmeans_iters: int = 10
     q_kmeans_seed: int = 0
+    # Orthonormal Hadamard rotation on Q/K before Q/K quantization. This is
+    # independent of smoothing/kmeans: full precision QK logits are unchanged,
+    # but FP8 block amax is usually smaller because channel outliers are spread
+    # across D. ``fast-hadamard-transform`` is used when installed; otherwise a
+    # torch FWHT fallback keeps the fake-quant path runnable.
+    qk_hadamard: bool = False
+    qk_hadamard_random_sign: bool = True
+    qk_hadamard_seed: int = 0
     fp8_block_size: int = 128         # QK fp8_block: per (B, S/blk, H)
     mxfp8_block_size: int = 32        # QK mxfp8: per (B, S, H, D/blk)
     # V quant block sizes (separate from QK to allow independent tuning).

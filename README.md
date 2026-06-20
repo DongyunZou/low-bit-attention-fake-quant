@@ -9,6 +9,7 @@ The main entry point is `low_bit_fake_quant.fake_quant_attention(q, k, v, cfg)`,
 where `cfg` is a `QuantConfig`.
 
 - Q/K quant: `fp8_block`, `mxfp8`
+- Q/K Hadamard rotation: `qk_hadamard=False` or `True` before Q/K quant
 - V quant: `fp8_channel`, `fp8_block`, `mxfp8`
 - Q/K smoothing: `off`, `k_only`, `full`
 - Q reorder: `q_kmeans_k=None` or a cluster count such as `32`/`64`
@@ -30,6 +31,8 @@ where `cfg` is a `QuantConfig`.
 - `bench/eval_wan21.py`: full Wan attention workload matrix.
 - `bench/sweep_v_quant.py`: focused V quant and V smoothing sweep.
 - `bench/sweep_kmeans_k.py`: Q/V k-means cluster count sweep.
+- `bench/eval_hadamard_qk.py`: Q/K Hadamard rotation with all smoothing and
+  k-means tricks disabled, reporting independent QK score/error gains.
 - `bench/gen_wan_videos.py`: end-to-end Wan video generation comparison.
 - `bench/gen_wan_e2e_pquant.py`: SDPA plus five P-quant end-to-end videos.
 - `bench/eval_video_dirs.py`: PSNR/SSIM/LPIPS for generated videos.

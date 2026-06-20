@@ -58,6 +58,34 @@ kernel 之间存在过大的语义差距。
    - correction: `correction = qm @ K_smooth^T`，不预乘 `sm_scale`。
    - helpers: `preprocess.group_mean_q` + `pipeline.prepare_qkv`。
 
+### Q/K Hadamard rotation
+
+独立于 smoothing 的 Q/K 量化误差降低技巧：
+
+- 配置：`qk_hadamard=True`。
+- 插入点：Q/K smoothing 和 k-means 之后，Q/K quant 之前。
+- 语义：对同一个 head 的 Q/K 使用同一个正交 Hadamard basis：
+
+```text
+Q' = Q R
+K' = K R
+Q' K'^T = Q K^T
+```
+
+full precision logits 不变；收益来自 FP8/MXFP8 量化前把 channel outlier
+摊到 D 维上，降低 block amax 和 round error。实现优先使用
+`fast-hadamard-transform`，未安装时用 torch FWHT fallback，保证 fake-quant
+实验可运行。
+
+独立收益实验必须固定：
+
+- `smoothing="off"`
+- `q_kmeans_k=None`
+- `v_smooth_mode="off"`
+- `v_kmeans_k=None`
+
+对应脚本：`bench/eval_hadamard_qk.py`。
+
 ### Q k-means reorder
 
 维度：

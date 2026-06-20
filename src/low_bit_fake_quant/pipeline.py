@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import torch
 
 from .config import QuantConfig
+from .hadamard import apply_qk_hadamard
 from .kmeans import KMeansReorderResult, q_kmeans_reorder
 from .preprocess import group_mean_q, smooth_k
 from .quant_triton import (
@@ -68,6 +69,14 @@ def prepare_qkv(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, cfg: QuantCon
         )
     elif cfg.smoothing != "off":
         raise ValueError(f"unsupported smoothing mode: {cfg.smoothing!r}")
+
+    if cfg.qk_hadamard:
+        q_work, k_work = apply_qk_hadamard(
+            q_work,
+            k_work,
+            random_sign=cfg.qk_hadamard_random_sign,
+            seed=cfg.qk_hadamard_seed,
+        )
 
     if cfg.qk_quant == "fp8_block":
         q_quant, q_scale = fp8_block_quant(q_work, block_s=cfg.fp8_block_size)
