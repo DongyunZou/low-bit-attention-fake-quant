@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="460" viewBox="0 0 760 460">
+<rect width="100%" height="100%" fill="white"/>
+<line x1="80" y1="388" x2="736" y2="388" stroke="#333"/>
+<line x1="80" y1="24" x2="80" y2="388" stroke="#333"/>
+<text x="380.0" y="436" text-anchor="middle" font-family="sans-serif" font-size="14">lambda (log scale)</text>
+<text x="18" y="230.0" text-anchor="middle" font-family="sans-serif" font-size="14" transform="rotate(-90 18 230.0)">Cosine vs torch SDPA</text>
+<line x1="80" y1="388.00" x2="736" y2="388.00" stroke="#ddd"/>
+<text x="72" y="392.00" text-anchor="end" font-family="sans-serif" font-size="11">0.997</text>
+<line x1="80" y1="297.00" x2="736" y2="297.00" stroke="#ddd"/>
+<text x="72" y="301.00" text-anchor="end" font-family="sans-serif" font-size="11">0.9973</text>
+<line x1="80" y1="206.00" x2="736" y2="206.00" stroke="#ddd"/>
+<text x="72" y="210.00" text-anchor="end" font-family="sans-serif" font-size="11">0.9977</text>
+<line x1="80" y1="115.00" x2="736" y2="115.00" stroke="#ddd"/>
+<text x="72" y="119.00" text-anchor="end" font-family="sans-serif" font-size="11">0.998</text>
+<line x1="80" y1="24.00" x2="736" y2="24.00" stroke="#ddd"/>
+<text x="72" y="28.00" text-anchor="end" font-family="sans-serif" font-size="11">0.9983</text>
+<line x1="80.00" y1="24" x2="80.00" y2="388" stroke="#eee"/>
+<text x="80.00" y="406" text-anchor="middle" font-family="sans-serif" font-size="11">1.0e-05</text>
+<line x1="244.00" y1="24" x2="244.00" y2="388" stroke="#eee"/>
+<text x="244.00" y="406" text-anchor="middle" font-family="sans-serif" font-size="11">5.6e-05</text>
+<line x1="408.00" y1="24" x2="408.00" y2="388" stroke="#eee"/>
+<text x="408.00" y="406" text-anchor="middle" font-family="sans-serif" font-size="11">3.2e-04</text>
+<line x1="572.00" y1="24" x2="572.00" y2="388" stroke="#eee"/>
+<text x="572.00" y="406" text-anchor="middle" font-family="sans-serif" font-size="11">1.8e-03</text>
+<line x1="736.00" y1="24" x2="736.00" y2="388" stroke="#eee"/>
+<text x="736.00" y="406" text-anchor="middle" font-family="sans-serif" font-size="11">1.0e-02</text>
+<polyline fill="none" stroke="#1f77b4" stroke-width="2" points="80.00,24.00 184.33,24.09 298.67,24.51 403.00,26.13 517.33,34.02 621.66,63.32 736.00,180.98"/>
+<circle cx="80.00" cy="24.00" r="3" fill="#1f77b4"/>
+<circle cx="184.33" cy="24.09" r="3" fill="#1f77b4"/>
+<circle cx="298.67" cy="24.51" r="3" fill="#1f77b4"/>
+<circle cx="403.00" cy="26.13" r="3" fill="#1f77b4"/>
+<circle cx="517.33" cy="34.02" r="3" fill="#1f77b4"/>
+<circle cx="621.66" cy="63.32" r="3" fill="#1f77b4"/>
+<circle cx="736.00" cy="180.98" r="3" fill="#1f77b4"/>
+<line x1="92" y1="38" x2="114" y2="38" stroke="#1f77b4" stroke-width="2"/>
+<text x="120" y="42" font-family="sans-serif" font-size="12">sequential</text>
+<polyline fill="none" stroke="#d62728" stroke-width="2" points="80.00,24.16 184.33,24.28 298.67,25.00 403.00,28.34 517.33,45.15 621.66,105.04 736.00,334.48"/>
+<circle cx="80.00" cy="24.16" r="3" fill="#d62728"/>
+<circle cx="184.33" cy="24.28" r="3" fill="#d62728"/>
+<circle cx="298.67" cy="25.00" r="3" fill="#d62728"/>
+<circle cx="403.00" cy="28.34" r="3" fill="#d62728"/>
+<circle cx="517.33" cy="45.15" r="3" fill="#d62728"/>
+<circle cx="621.66" cy="105.04" r="3" fill="#d62728"/>
+<circle cx="736.00" cy="334.48" r="3" fill="#d62728"/>
+<line x1="352" y1="38" x2="374" y2="38" stroke="#d62728" stroke-width="2"/>
+<text x="380" y="42" font-family="sans-serif" font-size="12">sequential_diag_init</text>
+<polyline fill="none" stroke="#2ca02c" stroke-width="2" points="80.00,27.22 184.33,27.34 298.67,27.81 403.00,29.70 517.33,39.25 621.66,73.25 736.00,206.98"/>
+<circle cx="80.00" cy="27.22" r="3" fill="#2ca02c"/>
+<circle cx="184.33" cy="27.34" r="3" fill="#2ca02c"/>
+<circle cx="298.67" cy="27.81" r="3" fill="#2ca02c"/>
+<circle cx="403.00" cy="29.70" r="3" fill="#2ca02c"/>
+<circle cx="517.33" cy="39.25" r="3" fill="#2ca02c"/>
+<circle cx="621.66" cy="73.25" r="3" fill="#2ca02c"/>
+<circle cx="736.00" cy="206.98" r="3" fill="#2ca02c"/>
+<line x1="92" y1="58" x2="114" y2="58" stroke="#2ca02c" stroke-width="2"/>
+<text x="120" y="62" font-family="sans-serif" font-size="12">shuffle</text>
+<polyline fill="none" stroke="#9467bd" stroke-width="2" points="80.00,27.38 184.33,27.53 298.67,28.40 403.00,32.48 517.33,53.18 621.66,124.48 736.00,388.00"/>
+<circle cx="80.00" cy="27.38" r="3" fill="#9467bd"/>
+<circle cx="184.33" cy="27.53" r="3" fill="#9467bd"/>
+<circle cx="298.67" cy="28.40" r="3" fill="#9467bd"/>
+<circle cx="403.00" cy="32.48" r="3" fill="#9467bd"/>
+<circle cx="517.33" cy="53.18" r="3" fill="#9467bd"/>
+<circle cx="621.66" cy="124.48" r="3" fill="#9467bd"/>
+<circle cx="736.00" cy="388.00" r="3" fill="#9467bd"/>
+<line x1="352" y1="58" x2="374" y2="58" stroke="#9467bd" stroke-width="2"/>
+<text x="380" y="62" font-family="sans-serif" font-size="12">shuffle_diag_init</text>
+</svg>

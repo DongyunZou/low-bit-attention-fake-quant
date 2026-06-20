@@ -24,6 +24,8 @@ independent of V/P quant kind.
 
 from __future__ import annotations
 
+import math
+
 import torch
 import triton
 import triton.language as tl
@@ -36,7 +38,8 @@ _UE8M0_EXP_MAX = 127.0
 
 @triton.jit
 def _fake_quant_attn_fwd_kernel(
-    Q, K, V, V_SCALE, V_ALPHA, K_SMOOTH, QM, V_BLOCK_SCALE, ROWMAX_EST, O,
+    Q, K, V, V_SCALE, V_ALPHA, K_SMOOTH, QM, V_BLOCK_SCALE, ROWMAX_EST,
+    ROWMAX_INIT, BLASST_STATS, OUT,
     stride_qz, stride_qh, stride_qm, stride_qk,
     stride_kz, stride_kh, stride_kn, stride_kk,
     stride_vz, stride_vh, stride_vn, stride_vk,
@@ -46,6 +49,8 @@ def _fake_quant_attn_fwd_kernel(
     stride_qmz, stride_qmg, stride_qmh, stride_qmd,
     stride_vbsz, stride_vbsn, stride_vbsh,
     stride_rmz, stride_rmh, stride_rmm,
+    stride_riz, stride_rih, stride_rim,
+    stride_stm, stride_sthz, stride_stc,
     stride_oz, stride_oh, stride_om, stride_ok,
     H: tl.constexpr,
     M: tl.constexpr,
@@ -64,6 +69,10 @@ def _fake_quant_attn_fwd_kernel(
     P_QUANT_KIND: tl.constexpr,        # 0=elementwise, 1=mx, 2=dynamic
     P_MX_BLOCK_N: tl.constexpr,        # MX P block along N (only if P=mx)
     HAS_ROWMAX_EST: tl.constexpr,
+    HAS_ROWMAX_INIT: tl.constexpr,
+    USE_BLASST: tl.constexpr,
+    BLASST_LOG_LAMBDA: tl.constexpr,
+    HAS_BLASST_STATS: tl.constexpr,
 ):
     LOG2E: tl.constexpr = 1.4426950408889634
     FP8_MAX: tl.constexpr = 448.0
@@ -82,6 +91,7 @@ def _fake_quant_attn_fwd_kernel(
     ks_off = off_z * stride_ksz + off_h * stride_ksh
     qm_off = off_z * stride_qmz + off_h * stride_qmh
     vbs_off = off_z * stride_vbsz + off_h * stride_vbsh
+    ri_off = off_z * stride_riz + off_h * stride_rih
 
     offs_m = start_m * BLOCK_M + tl.arange(0, BLOCK_M)
     offs_d = tl.arange(0, D)
@@ -104,6 +114,10 @@ def _fake_quant_attn_fwd_kernel(
         rm_ptrs = ROWMAX_EST + rm_off + offs_m * stride_rmm
         rowmax_est = tl.load(rm_ptrs, mask=offs_m < M, other=0.0).to(tl.float32)
         m_i = rowmax_est
+    elif HAS_ROWMAX_INIT:
+        ri_ptrs = ROWMAX_INIT + ri_off + offs_m * stride_rim
+        rowmax_est = tl.load(ri_ptrs, mask=offs_m < M, other=0.0).to(tl.float32)
+        m_i = rowmax_est
     else:
         rowmax_est = tl.zeros([BLOCK_M], dtype=tl.float32)
         m_i = tl.full([BLOCK_M], float("-inf"), dtype=tl.float32)
@@ -111,6 +125,8 @@ def _fake_quant_attn_fwd_kernel(
     acc = tl.zeros([BLOCK_M, D], dtype=tl.float32)
     c_acc = tl.zeros([BLOCK_M, D], dtype=tl.float32)  # V-smoothing correction
     max_seen_i = tl.full([BLOCK_M], float("-inf"), dtype=tl.float32)
+    blasst_skipped = tl.zeros([BLOCK_M], dtype=tl.float32)
+    blasst_total = tl.zeros([BLOCK_M], dtype=tl.float32)
 
     for start_n in range(0, N, BLOCK_N):
         offs_n = start_n + tl.arange(0, BLOCK_N)
@@ -132,7 +148,19 @@ def _fake_quant_attn_fwd_kernel(
 
         s_ij = tl.where(col_mask[None, :], s_ij, float("-inf"))
 
-        if HAS_ROWMAX_EST:
+        skip_row = offs_m < 0
+        if USE_BLASST:
+            block_max = tl.max(s_ij, 1)
+            m_ij = tl.maximum(m_i, block_max)
+            # BLASST skips rows whose current K block cannot materially
+            # contribute under the online-softmax coordinate.
+            skip_row = ((block_max - m_ij) < BLASST_LOG_LAMBDA) & (offs_m < M)
+            alpha = tl.exp2((m_i - m_ij) * LOG2E)
+            alpha = tl.where(skip_row, 1.0, alpha)
+            m_ij = tl.where(skip_row, m_i, m_ij)
+            blasst_skipped += tl.where(skip_row, 1.0, 0.0)
+            blasst_total += tl.where(offs_m < M, 1.0, 0.0)
+        elif HAS_ROWMAX_EST:
             if P_QUANT_KIND == 2:
                 # Keep the estimated rowmax fast path. If a tile proves the
                 # chosen coordinate would push exp() outside a safe FP32 range,
@@ -187,6 +215,8 @@ def _fake_quant_attn_fwd_kernel(
             z = (s_ij - m_ij[:, None]) * LOG2E
         p = tl.exp2(z)
         p = tl.where(col_mask[None, :], p, 0.0)
+        if USE_BLASST:
+            p = tl.where(skip_row[:, None], 0.0, p)
 
         l_i = l_i * alpha + tl.sum(p, 1)
 
@@ -263,8 +293,13 @@ def _fake_quant_attn_fwd_kernel(
     else:
         out_acc = out_main * inv_l
 
-    o_ptrs = O + o_off + offs_m[:, None] * stride_om + offs_d[None, :] * stride_ok
-    tl.store(o_ptrs, out_acc.to(O.dtype.element_ty), mask=q_mask)
+    o_ptrs = OUT + o_off + offs_m[:, None] * stride_om + offs_d[None, :] * stride_ok
+    tl.store(o_ptrs, out_acc.to(OUT.dtype.element_ty), mask=q_mask)
+
+    if HAS_BLASST_STATS:
+        stats_base = BLASST_STATS + start_m * stride_stm + off_hz * stride_sthz
+        tl.store(stats_base + 0 * stride_stc, tl.sum(blasst_skipped, axis=0))
+        tl.store(stats_base + 1 * stride_stc, tl.sum(blasst_total, axis=0))
 
 
 def fake_quant_attention_triton(
@@ -287,7 +322,10 @@ def fake_quant_attention_triton(
     p_quant_mode: str = "elementwise",
     p_mx_block_n: int = 0,
     rowmax_est_bhs: torch.Tensor | None = None,
-) -> torch.Tensor:
+    rowmax_init_bhs: torch.Tensor | None = None,
+    blasst_lambda: float | None = None,
+    return_blasst_stats: bool = False,
+) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
     """FA2-style fake-quant attention kernel.
 
     Three V quant kinds (selected implicitly by which scale tensor you pass):
@@ -302,6 +340,13 @@ def fake_quant_attention_triton(
       * ``mx``: per-K-block UE8M0 scale on P before the e4m3 cast. Match
         ``p_mx_block_n`` with V's mxfp8 block size.
       * ``dynamic``: per-row, per-K-block FP32 scale on P before the e4m3 cast.
+
+    ``blasst_lambda`` enables BLASST-style row/block skipping. The returned
+    optional stats tensor has shape ``(ceil(S / block_m), B * H, 2)`` with
+    ``[..., 0] = skipped row-block decisions`` and ``[..., 1] = total row-block
+    decisions``. This is an experiment/debug path; the Triton program still
+    executes a dense schedule and uses the skip predicate only for numerics and
+    accounting.
     """
     B, H, S, D = q_bhsd.shape
     assert k_bhsd.shape == (B, H, S, D)
@@ -373,6 +418,18 @@ def fake_quant_attention_triton(
         rowmax_est_bhs = torch.empty(1, dtype=torch.float32, device=q_bhsd.device)
         rm_strides = (0, 0, 0)
 
+    has_rowmax_init = rowmax_init_bhs is not None
+    if has_rowmax_init:
+        if has_rowmax_est:
+            raise ValueError("rowmax_init_bhs and rowmax_est_bhs are mutually exclusive")
+        assert rowmax_init_bhs.shape == (B, H, S)
+        assert rowmax_init_bhs.dtype == torch.float32
+        rowmax_init_bhs = rowmax_init_bhs.contiguous()
+        ri_strides = rowmax_init_bhs.stride()
+    else:
+        rowmax_init_bhs = torch.empty(1, dtype=torch.float32, device=q_bhsd.device)
+        ri_strides = (0, 0, 0)
+
     # V quant kind
     if v_block_scale_bsh is not None:
         v_quant_kind = 1  # fp8_block
@@ -420,11 +477,32 @@ def fake_quant_attention_triton(
     else:
         raise ValueError(f"unknown p_quant_mode: {p_quant_mode!r}")
 
+    use_blasst = blasst_lambda is not None
+    if use_blasst:
+        if not (0.0 < float(blasst_lambda) < 1.0):
+            raise ValueError(f"blasst_lambda must be in (0, 1); got {blasst_lambda}")
+        blasst_log_lambda = math.log(float(blasst_lambda))
+    else:
+        blasst_log_lambda = 0.0
+
+    has_blasst_stats = bool(return_blasst_stats)
+    if has_blasst_stats:
+        stats = torch.empty(
+            (triton.cdiv(S, block_m), B * H, 2),
+            dtype=torch.float32,
+            device=q_bhsd.device,
+        )
+        stats_strides = stats.stride()
+    else:
+        stats = torch.empty(1, dtype=torch.float32, device=q_bhsd.device)
+        stats_strides = (0, 0, 0)
+
     o = torch.empty_like(q_bhsd)
     grid = (triton.cdiv(S, block_m), B * H)
     _fake_quant_attn_fwd_kernel[grid](
         q_bhsd, k_bhsd, v_bhsd_bf16, v_scale_bhd, v_alpha,
-        k_smooth_bhsd, qm_bhgd, v_block_scale_bsh, rowmax_est_bhs, o,
+        k_smooth_bhsd, qm_bhgd, v_block_scale_bsh, rowmax_est_bhs,
+        rowmax_init_bhs, stats, o,
         q_bhsd.stride(0), q_bhsd.stride(1), q_bhsd.stride(2), q_bhsd.stride(3),
         k_bhsd.stride(0), k_bhsd.stride(1), k_bhsd.stride(2), k_bhsd.stride(3),
         v_bhsd_bf16.stride(0), v_bhsd_bf16.stride(1), v_bhsd_bf16.stride(2), v_bhsd_bf16.stride(3),
@@ -434,6 +512,8 @@ def fake_quant_attention_triton(
         qm_strides[0], qm_strides[1], qm_strides[2], qm_strides[3],
         vbs_strides[0], vbs_strides[1], vbs_strides[2],
         rm_strides[0], rm_strides[1], rm_strides[2],
+        ri_strides[0], ri_strides[1], ri_strides[2],
+        stats_strides[0], stats_strides[1], stats_strides[2],
         o.stride(0), o.stride(1), o.stride(2), o.stride(3),
         H=H, M=S, N=S,
         sm_scale=sm_scale,
@@ -449,9 +529,15 @@ def fake_quant_attention_triton(
         P_QUANT_KIND=p_quant_kind,
         P_MX_BLOCK_N=p_mx_block_n_arg,
         HAS_ROWMAX_EST=has_rowmax_est,
+        HAS_ROWMAX_INIT=has_rowmax_init,
+        USE_BLASST=use_blasst,
+        BLASST_LOG_LAMBDA=blasst_log_lambda,
+        HAS_BLASST_STATS=has_blasst_stats,
         num_warps=4,
         num_stages=2,
     )
+    if return_blasst_stats:
+        return o, stats
     return o
 
 
