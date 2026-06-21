@@ -28,6 +28,10 @@ bench/_smoke*
 task.md
 workflow-output/
 
+# agent_space: keep result tables/summaries, drop noisy run logs + smoke dirs
+agent_space/*.log
+agent_space/_*/
+
 # Local Wan debug / video artifacts
 bench/wan_diag*/
 bench/wan_e2e*/
