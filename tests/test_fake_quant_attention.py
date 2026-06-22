@@ -76,3 +76,39 @@ def test_p_requant_and_sdpa_paths_agree_closely_when_p_is_exact():
     cos = _cosine(o_a, o_b)
     # Should be close — both quant Q/K/V the same; only P cast differs.
     assert cos > 0.99, f"P-requant vs SDPA path cosine={cos:.4f}"
+
+
+@pytest.mark.parametrize("fill", ["mean_a1.5", "uta16_a1.5"])
+def test_fake_quant_attention_runs_with_blasst_fill(fill):
+    q, k, v = _make_qkv(b=1, s=256, h=2, d=64, seed=13)
+    cfg = QuantConfig(
+        qk_quant="fp8_block",
+        v_quant="fp8_channel",
+        smoothing="off",
+        q_kmeans_k=None,
+        q_smooth_block_size=128,
+        fp8_block_size=128,
+        p_requant=True,
+        p_requant_block_m=64,
+        p_requant_block_n=64,
+        blasst_lambda=0.8,
+        blasst_fill=fill,
+    )
+    out = fake_quant_attention(q, k, v, cfg)
+    assert out.shape == q.shape
+    assert torch.isfinite(out).all()
+
+
+def test_blasst_fill_requires_p_requant_path():
+    q, k, v = _make_qkv(b=1, s=256, h=2, d=64, seed=14)
+    cfg = QuantConfig(
+        qk_quant="fp8_block",
+        smoothing="off",
+        q_kmeans_k=None,
+        q_smooth_block_size=128,
+        p_requant=False,
+        blasst_lambda=0.8,
+        blasst_fill="mean_a1.5",
+    )
+    with pytest.raises(ValueError, match="requires cfg.p_requant=True"):
+        fake_quant_attention(q, k, v, cfg)

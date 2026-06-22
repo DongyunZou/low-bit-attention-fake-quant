@@ -155,6 +155,9 @@ def quantized_attention(
     *,
     block_size: int,
     blasst_lambda: float | None,
+    blasst_fill: str,
+    blasst_fill_alpha: float,
+    blasst_uta_bins: int,
     rowmax_init: bool,
 ) -> tuple[torch.Tensor, dict[str, float] | None]:
     b, s, h, d = q.shape
@@ -205,6 +208,9 @@ def quantized_attention(
             p_quant_mode="elementwise",
             rowmax_init_bhs=rowmax_init_bhs,
             blasst_lambda=blasst_lambda,
+            blasst_fill_mode=blasst_fill,
+            blasst_fill_alpha=blasst_fill_alpha,
+            blasst_uta_bins=blasst_uta_bins,
             return_blasst_stats=True,
         )
         skipped = float(stats[..., 0].sum().item())
@@ -231,6 +237,9 @@ def run_one_variant(
     order: torch.Tensor | None,
     block_size: int,
     lambdas: list[float],
+    blasst_fill: str,
+    blasst_fill_alpha: float,
+    blasst_uta_bins: int,
     rowmax_init: bool,
 ) -> list[dict]:
     if order is not None:
@@ -245,7 +254,15 @@ def run_one_variant(
     records: list[dict] = []
 
     out_base, _ = quantized_attention(
-        q_work, k_work, v_work, block_size=block_size, blasst_lambda=None, rowmax_init=False
+        q_work,
+        k_work,
+        v_work,
+        block_size=block_size,
+        blasst_lambda=None,
+        blasst_fill="zero",
+        blasst_fill_alpha=1.0,
+        blasst_uta_bins=1,
+        rowmax_init=False,
     )
     if inv is not None:
         out_base = apply_order(out_base, inv)
@@ -266,6 +283,9 @@ def run_one_variant(
             v_work,
             block_size=block_size,
             blasst_lambda=lam,
+            blasst_fill=blasst_fill,
+            blasst_fill_alpha=blasst_fill_alpha,
+            blasst_uta_bins=blasst_uta_bins,
             rowmax_init=rowmax_init,
         )
         if inv is not None:
@@ -427,6 +447,16 @@ def main() -> None:
     parser.add_argument("--tile", nargs=3, type=int, default=(1, 8, 16), metavar=("TS", "HS", "WS"))
     parser.add_argument("--block-size", type=int, default=128)
     parser.add_argument(
+        "--blasst-fill",
+        default="zero",
+        help=(
+            "Fill mode for skipped BLASST row-blocks: zero, max, mean, logn, "
+            "sample8, thr, uta, or probe spellings like mean_a1.5/uta16_a1.5"
+        ),
+    )
+    parser.add_argument("--blasst-fill-alpha", type=float, default=1.0)
+    parser.add_argument("--blasst-uta-bins", type=int, default=16)
+    parser.add_argument(
         "--lambdas",
         nargs="+",
         type=float,
@@ -453,6 +483,9 @@ def main() -> None:
         "tile": list(args.tile),
         "block_size": args.block_size,
         "lambdas": args.lambdas,
+        "blasst_fill": args.blasst_fill,
+        "blasst_fill_alpha": args.blasst_fill_alpha,
+        "blasst_uta_bins": args.blasst_uta_bins,
         "notes": {
             "ground_truth": "torch SDPA on raw BF16 q/k/v",
             "quant_path": "fp8_block Q/K/V + elementwise P FP8 requant Triton kernel",
@@ -523,6 +556,9 @@ def main() -> None:
                 order=order,
                 block_size=args.block_size,
                 lambdas=args.lambdas,
+                blasst_fill=args.blasst_fill,
+                blasst_fill_alpha=args.blasst_fill_alpha,
+                blasst_uta_bins=args.blasst_uta_bins,
                 rowmax_init=rowmax_init,
             )
             torch.cuda.synchronize()

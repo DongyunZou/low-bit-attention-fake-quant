@@ -23,6 +23,11 @@ where `cfg` is a `QuantConfig`.
   experimental estimate. In dynamic-P mode the Triton path can start from this
   estimate and only fall back to an online-style rowmax update when the current
   tile moves outside a threshold.
+- BLASST skip/fill in the Triton P-requant path: `blasst_lambda=None` disables
+  it; otherwise skipped row/K-blocks use `blasst_fill="zero"` or softmax-free
+  fill modes `max`, `mean`, `logn`, `sample8`, `thr`, `uta`. Probe spellings
+  like `mean_a1.5` and `uta16_a1.5` are accepted. This path currently executes
+  the dense Triton schedule and applies skip/fill numerically for experiments.
 
 `auto` picks `mx` for `v_quant="mxfp8"` and `elementwise` otherwise.
 
@@ -36,6 +41,9 @@ where `cfg` is a `QuantConfig`.
 - `bench/gen_wan_videos.py`: end-to-end Wan video generation comparison.
 - `bench/gen_wan_e2e_pquant.py`: SDPA plus five P-quant end-to-end videos.
 - `bench/eval_video_dirs.py`: PSNR/SSIM/LPIPS for generated videos.
+- `bench/eval_blasst_quant.py`: Triton BLASST skip/fill sweep; pass
+  `--blasst-fill mean_a1.5` or `--blasst-fill uta16_a1.5` to evaluate the
+  in-kernel fill modes.
 
 ## End-to-End Wan Videos
 

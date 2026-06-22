@@ -25,6 +25,7 @@ independent of V/P quant kind.
 from __future__ import annotations
 
 import math
+import re
 
 import torch
 import triton
@@ -34,6 +35,14 @@ _LOG2E = 1.4426950408889634
 _FP8_E4M3_MAX = 448.0
 _UE8M0_EXP_MIN = -127.0
 _UE8M0_EXP_MAX = 127.0
+
+_BLASST_FILL_ZERO = 0
+_BLASST_FILL_MAX = 1
+_BLASST_FILL_MEAN = 2
+_BLASST_FILL_LOGN = 3
+_BLASST_FILL_SAMPLE8 = 4
+_BLASST_FILL_THR = 5
+_BLASST_FILL_UTA = 6
 
 
 @triton.jit
@@ -72,6 +81,10 @@ def _fake_quant_attn_fwd_kernel(
     HAS_ROWMAX_INIT: tl.constexpr,
     USE_BLASST: tl.constexpr,
     BLASST_LOG_LAMBDA: tl.constexpr,
+    BLASST_LAMBDA: tl.constexpr,
+    BLASST_FILL_KIND: tl.constexpr,
+    BLASST_FILL_ALPHA: tl.constexpr,
+    BLASST_UTA_BINS: tl.constexpr,
     HAS_BLASST_STATS: tl.constexpr,
 ):
     LOG2E: tl.constexpr = 1.4426950408889634
@@ -216,7 +229,99 @@ def _fake_quant_attn_fwd_kernel(
         p = tl.exp2(z)
         p = tl.where(col_mask[None, :], p, 0.0)
         if USE_BLASST:
-            p = tl.where(skip_row[:, None], 0.0, p)
+            if BLASST_FILL_KIND == 0:
+                p = tl.where(skip_row[:, None], 0.0, p)
+            else:
+                p_exact = tl.where(skip_row[:, None], 0.0, p)
+                n_valid = tl.sum(tl.where(col_mask, 1.0, 0.0), axis=0)
+                safe_n = tl.maximum(n_valid, 1.0)
+
+                if P_QUANT_KIND == 0:
+                    fill_offset = p_max_offset
+                else:
+                    fill_offset = 0.0
+
+                s_stat = tl.where(col_mask[None, :], s_ij, 0.0)
+                mean = tl.sum(s_stat, 1) / safe_n
+                max_bound = safe_n * tl.exp2((block_max - m_ij) * LOG2E + fill_offset)
+
+                p_fill = tl.zeros([BLOCK_M, BLOCK_N], dtype=tl.float32)
+                if BLASST_FILL_KIND == 1:
+                    fill_mass = max_bound * BLASST_FILL_ALPHA
+                    fill_p = fill_mass / safe_n
+                    p_fill = tl.where(skip_row[:, None] & col_mask[None, :], fill_p[:, None], 0.0)
+                elif BLASST_FILL_KIND == 2:
+                    fill_mass = (
+                        BLASST_FILL_ALPHA
+                        * safe_n
+                        * tl.exp2((mean - m_ij) * LOG2E + fill_offset)
+                    )
+                    fill_mass = tl.minimum(fill_mass, max_bound)
+                    fill_p = fill_mass / safe_n
+                    p_fill = tl.where(skip_row[:, None] & col_mask[None, :], fill_p[:, None], 0.0)
+                elif BLASST_FILL_KIND == 3:
+                    centered = tl.where(col_mask[None, :], s_ij - mean[:, None], 0.0)
+                    var = tl.sum(centered * centered, 1) / safe_n
+                    fill_mass = safe_n * tl.exp2((mean + 0.5 * var - m_ij) * LOG2E + fill_offset)
+                    fill_mass = tl.minimum(fill_mass, max_bound)
+                    fill_p = fill_mass / safe_n
+                    p_fill = tl.where(skip_row[:, None] & col_mask[None, :], fill_p[:, None], 0.0)
+                elif BLASST_FILL_KIND == 4:
+                    if BLOCK_N >= 8:
+                        sample_stride: tl.constexpr = BLOCK_N // 8
+                    else:
+                        sample_stride: tl.constexpr = 1
+                    rel_n = tl.arange(0, BLOCK_N)
+                    sample_mask = ((rel_n % sample_stride) == 0) & col_mask
+                    sample_count = tl.sum(tl.where(sample_mask, 1.0, 0.0), axis=0)
+                    safe_sample_count = tl.maximum(sample_count, 1.0)
+                    sample_p = tl.exp2((s_ij - m_ij[:, None]) * LOG2E + fill_offset)
+                    sample_p = tl.where(sample_mask[None, :], sample_p, 0.0)
+                    fill_mass = BLASST_FILL_ALPHA * safe_n * tl.sum(sample_p, 1) / safe_sample_count
+                    fill_mass = tl.minimum(fill_mass, max_bound)
+                    fill_p = fill_mass / safe_n
+                    p_fill = tl.where(skip_row[:, None] & col_mask[None, :], fill_p[:, None], 0.0)
+                elif BLASST_FILL_KIND == 5:
+                    if P_QUANT_KIND == 0:
+                        offset_scale = tl.exp2(p_max_offset + 0.0)
+                    else:
+                        offset_scale = 1.0
+                    fill_mass = (
+                        BLASST_FILL_ALPHA
+                        * safe_n
+                        * BLASST_LAMBDA
+                        * offset_scale
+                    )
+                    fill_p = fill_mass / safe_n
+                    p_fill = tl.where(skip_row[:, None] & col_mask[None, :], fill_p[:, None], 0.0)
+                else:
+                    rel_n = tl.arange(0, BLOCK_N)
+                    BIN_SIZE: tl.constexpr = BLOCK_N // BLASST_UTA_BINS
+                    for bin_id in tl.static_range(0, BLASST_UTA_BINS):
+                        bin_mask = (
+                            (rel_n >= bin_id * BIN_SIZE)
+                            & (rel_n < (bin_id + 1) * BIN_SIZE)
+                            & col_mask
+                        )
+                        bin_count = tl.sum(tl.where(bin_mask, 1.0, 0.0), axis=0)
+                        safe_bin_count = tl.maximum(bin_count, 1.0)
+                        bin_vals = tl.where(bin_mask[None, :], s_ij, 0.0)
+                        bin_mean = tl.sum(bin_vals, 1) / safe_bin_count
+                        bin_max = tl.max(tl.where(bin_mask[None, :], s_ij, float("-inf")), 1)
+                        bin_bound = safe_bin_count * tl.exp2((bin_max - m_ij) * LOG2E + fill_offset)
+                        bin_mass = (
+                            BLASST_FILL_ALPHA
+                            * safe_bin_count
+                            * tl.exp2((bin_mean - m_ij) * LOG2E + fill_offset)
+                        )
+                        bin_mass = tl.minimum(bin_mass, bin_bound)
+                        bin_p = bin_mass / safe_bin_count
+                        p_fill = tl.where(
+                            skip_row[:, None] & bin_mask[None, :],
+                            bin_p[:, None],
+                            p_fill,
+                        )
+                p = p_exact + p_fill
 
         l_i = l_i * alpha + tl.sum(p, 1)
 
@@ -324,6 +429,9 @@ def fake_quant_attention_triton(
     rowmax_est_bhs: torch.Tensor | None = None,
     rowmax_init_bhs: torch.Tensor | None = None,
     blasst_lambda: float | None = None,
+    blasst_fill_mode: str = "zero",
+    blasst_fill_alpha: float = 1.0,
+    blasst_uta_bins: int = 16,
     return_blasst_stats: bool = False,
 ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
     """FA2-style fake-quant attention kernel.
@@ -344,9 +452,13 @@ def fake_quant_attention_triton(
     ``blasst_lambda`` enables BLASST-style row/block skipping. The returned
     optional stats tensor has shape ``(ceil(S / block_m), B * H, 2)`` with
     ``[..., 0] = skipped row-block decisions`` and ``[..., 1] = total row-block
-    decisions``. This is an experiment/debug path; the Triton program still
-    executes a dense schedule and uses the skip predicate only for numerics and
-    accounting.
+    decisions``. ``blasst_fill_mode`` controls what a skipped row/block
+    contributes: ``zero`` drops it, while ``max``, ``mean``, ``logn``,
+    ``sample8``, ``thr``, and ``uta`` add softmax-free approximate P mass and
+    PV contribution. Legacy probe names such as ``mean_a1.5`` and
+    ``uta16_a1.5`` are also accepted. This is still an experiment/debug path:
+    the Triton program executes a dense schedule and uses the skip predicate for
+    numerics and accounting.
     """
     B, H, S, D = q_bhsd.shape
     assert k_bhsd.shape == (B, H, S, D)
@@ -482,8 +594,22 @@ def fake_quant_attention_triton(
         if not (0.0 < float(blasst_lambda) < 1.0):
             raise ValueError(f"blasst_lambda must be in (0, 1); got {blasst_lambda}")
         blasst_log_lambda = math.log(float(blasst_lambda))
+        blasst_fill_kind, blasst_fill_alpha_arg, blasst_uta_bins_arg = _parse_blasst_fill(
+            blasst_fill_mode,
+            alpha=blasst_fill_alpha,
+            uta_bins=blasst_uta_bins,
+        )
+        if blasst_fill_kind == _BLASST_FILL_UTA and block_n % blasst_uta_bins_arg != 0:
+            raise ValueError(
+                f"blasst UTA bins ({blasst_uta_bins_arg}) must divide block_n ({block_n})"
+            )
     else:
         blasst_log_lambda = 0.0
+        if blasst_fill_mode not in ("zero", None):
+            raise ValueError("blasst_fill_mode requires blasst_lambda")
+        blasst_fill_kind = _BLASST_FILL_ZERO
+        blasst_fill_alpha_arg = 1.0
+        blasst_uta_bins_arg = 1
 
     has_blasst_stats = bool(return_blasst_stats)
     if has_blasst_stats:
@@ -532,6 +658,10 @@ def fake_quant_attention_triton(
         HAS_ROWMAX_INIT=has_rowmax_init,
         USE_BLASST=use_blasst,
         BLASST_LOG_LAMBDA=blasst_log_lambda,
+        BLASST_LAMBDA=float(blasst_lambda) if use_blasst else 0.0,
+        BLASST_FILL_KIND=blasst_fill_kind,
+        BLASST_FILL_ALPHA=float(blasst_fill_alpha_arg),
+        BLASST_UTA_BINS=int(blasst_uta_bins_arg),
         HAS_BLASST_STATS=has_blasst_stats,
         num_warps=4,
         num_stages=2,
@@ -539,6 +669,49 @@ def fake_quant_attention_triton(
     if return_blasst_stats:
         return o, stats
     return o
+
+
+def _parse_blasst_fill(mode: str | None, *, alpha: float, uta_bins: int) -> tuple[int, float, int]:
+    """Map public BLASST fill strings to Triton constexprs.
+
+    The parser accepts both the structured API (``mode="mean", alpha=1.5``)
+    and the exploration harness spellings (``"mean_a1.5"``,
+    ``"uta16_a1.5"``).
+    """
+    if mode is None or mode == "zero":
+        return _BLASST_FILL_ZERO, float(alpha), 1
+    if mode == "max":
+        return _BLASST_FILL_MAX, float(alpha), 1
+    if mode.startswith("max_a"):
+        return _BLASST_FILL_MAX, float(mode[len("max_a"):]), 1
+    if mode == "mean":
+        return _BLASST_FILL_MEAN, float(alpha), 1
+    if mode.startswith("mean_a"):
+        return _BLASST_FILL_MEAN, float(mode[len("mean_a"):]), 1
+    if mode == "logn":
+        return _BLASST_FILL_LOGN, float(alpha), 1
+    if mode == "sample8":
+        return _BLASST_FILL_SAMPLE8, float(alpha), 1
+    if mode.startswith("sample8_a"):
+        return _BLASST_FILL_SAMPLE8, float(mode[len("sample8_a"):]), 1
+    if mode == "thr":
+        return _BLASST_FILL_THR, float(alpha), 1
+    if mode.startswith("thr_a"):
+        return _BLASST_FILL_THR, float(mode[len("thr_a"):]), 1
+    if mode == "uta":
+        if uta_bins <= 0:
+            raise ValueError(f"blasst_uta_bins must be > 0; got {uta_bins}")
+        return _BLASST_FILL_UTA, float(alpha), int(uta_bins)
+
+    uta = re.fullmatch(r"uta(\d+)(?:_a([0-9]+(?:\.[0-9]+)?))?", mode)
+    if uta:
+        bins = int(uta.group(1))
+        if bins <= 0:
+            raise ValueError(f"UTA bin count must be > 0; got {bins}")
+        parsed_alpha = float(uta.group(2)) if uta.group(2) is not None else float(alpha)
+        return _BLASST_FILL_UTA, parsed_alpha, bins
+
+    raise ValueError(f"unknown blasst_fill_mode: {mode!r}")
 
 
 __all__ = ["fake_quant_attention_triton"]

@@ -631,6 +631,10 @@ def _fake_quant_attention_p_requant(
         p_quant_mode=p_mode,
         p_mx_block_n=p_mx_block_n,
         rowmax_est_bhs=rowmax_est_arg,
+        blasst_lambda=cfg.blasst_lambda,
+        blasst_fill_mode=cfg.blasst_fill,
+        blasst_fill_alpha=cfg.blasst_fill_alpha,
+        blasst_uta_bins=cfg.blasst_uta_bins,
     )
     return o_bhsd.permute(0, 2, 1, 3).contiguous().to(out_dtype)
 
@@ -745,6 +749,8 @@ def fake_quant_attention(
     b, s, h, d = q.shape
     if sm_scale is None:
         sm_scale = 1.0 / math.sqrt(d)
+    if cfg.blasst_lambda is not None and not cfg.p_requant:
+        raise ValueError("BLASST skip/fill requires cfg.p_requant=True")
 
     if preprocess_cache is not None:
         if (

@@ -1,0 +1,591 @@
+{
+  "block_size": 128,
+  "fills": [
+    "zero",
+    "mean_a1.5",
+    "uta16_a1.5"
+  ],
+  "lambdas": [
+    0.03,
+    0.1,
+    0.2
+  ],
+  "workloads": [
+    {
+      "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_30/timestep_0.pt",
+      "shape": [
+        1,
+        69120,
+        40,
+        128
+      ],
+      "dense_fp8_vs_sdpa": {
+        "mse": 2.6834446543944068e-05,
+        "rmse": 0.005180197539085172,
+        "cosine": 0.9996233582496643,
+        "rel_l2": 0.02746996283531189,
+        "max_abs_err": 0.380859375
+      },
+      "rows": [
+        {
+          "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_30/timestep_0.pt",
+          "shape": [
+            1,
+            69120,
+            40,
+            128
+          ],
+          "fill": "zero",
+          "lambda": 0.03,
+          "seconds": 0.6423418521881104,
+          "skip_stats": {
+            "row_skip_ratio": 0.3664815672153635,
+            "tile_skip_ratio": 0.0
+          },
+          "vs_sdpa": {
+            "mse": 0.0003764161665458232,
+            "rmse": 0.019401447537382956,
+            "cosine": 0.9951271414756775,
+            "rel_l2": 0.10288354009389877,
+            "max_abs_err": 1.15625
+          },
+          "vs_dense_fp8": {
+            "mse": 0.0003529252135194838,
+            "rmse": 0.018786303881271692,
+            "cosine": 0.9954807162284851,
+            "rel_l2": 0.09977640956640244,
+            "max_abs_err": 1.142578125
+          }
+        },
+        {
+          "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_30/timestep_0.pt",
+          "shape": [
+            1,
+            69120,
+            40,
+            128
+          ],
+          "fill": "mean_a1.5",
+          "lambda": 0.03,
+          "seconds": 0.7727952003479004,
+          "skip_stats": {
+            "row_skip_ratio": 0.3664815672153635,
+            "tile_skip_ratio": 0.0
+          },
+          "vs_sdpa": {
+            "mse": 0.000106537583633326,
+            "rmse": 0.010321704492637153,
+            "cosine": 0.998542845249176,
+            "rel_l2": 0.05473475530743599,
+            "max_abs_err": 0.5078125
+          },
+          "vs_dense_fp8": {
+            "mse": 7.904758240329102e-05,
+            "rmse": 0.008890870733695941,
+            "cosine": 0.9989376068115234,
+            "rel_l2": 0.04722052440047264,
+            "max_abs_err": 0.501708984375
+          }
+        },
+        {
+          "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_30/timestep_0.pt",
+          "shape": [
+            1,
+            69120,
+            40,
+            128
+          ],
+          "fill": "uta16_a1.5",
+          "lambda": 0.03,
+          "seconds": 1.2308599948883057,
+          "skip_stats": {
+            "row_skip_ratio": 0.3664815672153635,
+            "tile_skip_ratio": 0.0
+          },
+          "vs_sdpa": {
+            "mse": 8.818149217404425e-05,
+            "rmse": 0.009390500102446315,
+            "cosine": 0.9987722039222717,
+            "rel_l2": 0.0497966930270195,
+            "max_abs_err": 0.4921875
+          },
+          "vs_dense_fp8": {
+            "mse": 6.0535629017977044e-05,
+            "rmse": 0.007780464575973407,
+            "cosine": 0.9991651177406311,
+            "rel_l2": 0.04132302105426788,
+            "max_abs_err": 0.454833984375
+          }
+        },
+        {
+          "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_30/timestep_0.pt",
+          "shape": [
+            1,
+            69120,
+            40,
+            128
+          ],
+          "fill": "zero",
+          "lambda": 0.1,
+          "seconds": 0.5877425670623779,
+          "skip_stats": {
+            "row_skip_ratio": 0.598431541495199,
+            "tile_skip_ratio": 0.0
+          },
+          "vs_sdpa": {
+            "mse": 0.0014083851128816605,
+            "rmse": 0.03752845737412691,
+            "cosine": 0.9828712940216064,
+            "rel_l2": 0.19900888204574585,
+            "max_abs_err": 2.380859375
+          },
+          "vs_dense_fp8": {
+            "mse": 0.001388158998452127,
+            "rmse": 0.03725800583031957,
+            "cosine": 0.9832003116607666,
+            "rel_l2": 0.19788192212581635,
+            "max_abs_err": 2.369140625
+          }
+        },
+        {
+          "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_30/timestep_0.pt",
+          "shape": [
+            1,
+            69120,
+            40,
+            128
+          ],
+          "fill": "mean_a1.5",
+          "lambda": 0.1,
+          "seconds": 0.7786803245544434,
+          "skip_stats": {
+            "row_skip_ratio": 0.598431541495199,
+            "tile_skip_ratio": 0.0
+          },
+          "vs_sdpa": {
+            "mse": 0.00038734267582185566,
+            "rmse": 0.019681023241230514,
+            "cosine": 0.9947071671485901,
+            "rel_l2": 0.10436608642339706,
+            "max_abs_err": 0.9326171875
+          },
+          "vs_dense_fp8": {
+            "mse": 0.0003574081347323954,
+            "rmse": 0.018905240932936968,
+            "cosine": 0.9951362013816833,
+            "rel_l2": 0.10040809214115143,
+            "max_abs_err": 0.91064453125
+          }
+        },
+        {
+          "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_30/timestep_0.pt",
+          "shape": [
+            1,
+            69120,
+            40,
+            128
+          ],
+          "fill": "uta16_a1.5",
+          "lambda": 0.1,
+          "seconds": 1.2331368923187256,
+          "skip_stats": {
+            "row_skip_ratio": 0.598431541495199,
+            "tile_skip_ratio": 0.0
+          },
+          "vs_sdpa": {
+            "mse": 0.0003068487858399749,
+            "rmse": 0.01751709981246824,
+            "cosine": 0.9957189559936523,
+            "rel_l2": 0.09289106726646423,
+            "max_abs_err": 0.8818359375
+          },
+          "vs_dense_fp8": {
+            "mse": 0.00027673080330714583,
+            "rmse": 0.016635227780440694,
+            "cosine": 0.9961430430412292,
+            "rel_l2": 0.0883517786860466,
+            "max_abs_err": 0.85986328125
+          }
+        },
+        {
+          "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_30/timestep_0.pt",
+          "shape": [
+            1,
+            69120,
+            40,
+            128
+          ],
+          "fill": "zero",
+          "lambda": 0.2,
+          "seconds": 0.5873498916625977,
+          "skip_stats": {
+            "row_skip_ratio": 0.75809670781893,
+            "tile_skip_ratio": 0.0
+          },
+          "vs_sdpa": {
+            "mse": 0.0034933583810925484,
+            "rmse": 0.059104639251860325,
+            "cosine": 0.9598149657249451,
+            "rel_l2": 0.3134247958660126,
+            "max_abs_err": 4.568359375
+          },
+          "vs_dense_fp8": {
+            "mse": 0.003476040903478861,
+            "rmse": 0.05895795877978528,
+            "cosine": 0.9601160883903503,
+            "rel_l2": 0.3131330907344818,
+            "max_abs_err": 4.556640625
+          }
+        },
+        {
+          "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_30/timestep_0.pt",
+          "shape": [
+            1,
+            69120,
+            40,
+            128
+          ],
+          "fill": "mean_a1.5",
+          "lambda": 0.2,
+          "seconds": 0.7969117164611816,
+          "skip_stats": {
+            "row_skip_ratio": 0.75809670781893,
+            "tile_skip_ratio": 0.0
+          },
+          "vs_sdpa": {
+            "mse": 0.0008956031524576247,
+            "rmse": 0.029926629487091003,
+            "cosine": 0.9876683354377747,
+            "rel_l2": 0.15869730710983276,
+            "max_abs_err": 1.6552734375
+          },
+          "vs_dense_fp8": {
+            "mse": 0.0008620063308626413,
+            "rmse": 0.029359944326627075,
+            "cosine": 0.9881380796432495,
+            "rel_l2": 0.15593433380126953,
+            "max_abs_err": 1.615234375
+          }
+        },
+        {
+          "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_30/timestep_0.pt",
+          "shape": [
+            1,
+            69120,
+            40,
+            128
+          ],
+          "fill": "uta16_a1.5",
+          "lambda": 0.2,
+          "seconds": 1.2380168437957764,
+          "skip_stats": {
+            "row_skip_ratio": 0.75809670781893,
+            "tile_skip_ratio": 0.0
+          },
+          "vs_sdpa": {
+            "mse": 0.0007066936232149601,
+            "rmse": 0.026583709733875745,
+            "cosine": 0.9900867938995361,
+            "rel_l2": 0.14097021520137787,
+            "max_abs_err": 1.6005859375
+          },
+          "vs_dense_fp8": {
+            "mse": 0.0006733747432008386,
+            "rmse": 0.025949465181402846,
+            "cosine": 0.9905440211296082,
+            "rel_l2": 0.13782085478305817,
+            "max_abs_err": 1.560546875
+          }
+        }
+      ]
+    },
+    {
+      "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_39/timestep_0.pt",
+      "shape": [
+        1,
+        69120,
+        40,
+        128
+      ],
+      "dense_fp8_vs_sdpa": {
+        "mse": 4.660721242544241e-05,
+        "rmse": 0.006826947518872722,
+        "cosine": 0.9998081922531128,
+        "rel_l2": 0.019608888775110245,
+        "max_abs_err": 2.11328125
+      },
+      "rows": [
+        {
+          "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_39/timestep_0.pt",
+          "shape": [
+            1,
+            69120,
+            40,
+            128
+          ],
+          "fill": "zero",
+          "lambda": 0.03,
+          "seconds": 0.5831682682037354,
+          "skip_stats": {
+            "row_skip_ratio": 0.22832051611796983,
+            "tile_skip_ratio": 0.0
+          },
+          "vs_sdpa": {
+            "mse": 0.00017616308468859643,
+            "rmse": 0.013272644223687924,
+            "cosine": 0.999273419380188,
+            "rel_l2": 0.038122717291116714,
+            "max_abs_err": 2.115234375
+          },
+          "vs_dense_fp8": {
+            "mse": 0.00013135100016370416,
+            "rmse": 0.011460846398224879,
+            "cosine": 0.9994586110115051,
+            "rel_l2": 0.03296607732772827,
+            "max_abs_err": 0.41796875
+          }
+        },
+        {
+          "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_39/timestep_0.pt",
+          "shape": [
+            1,
+            69120,
+            40,
+            128
+          ],
+          "fill": "mean_a1.5",
+          "lambda": 0.03,
+          "seconds": 0.7760982513427734,
+          "skip_stats": {
+            "row_skip_ratio": 0.22832051611796983,
+            "tile_skip_ratio": 0.0
+          },
+          "vs_sdpa": {
+            "mse": 7.531657320214435e-05,
+            "rmse": 0.008678512153713005,
+            "cosine": 0.9996889233589172,
+            "rel_l2": 0.02492709644138813,
+            "max_abs_err": 2.115234375
+          },
+          "vs_dense_fp8": {
+            "mse": 2.8392867534421384e-05,
+            "rmse": 0.0053284958041103295,
+            "cosine": 0.9998825788497925,
+            "rel_l2": 0.01532693114131689,
+            "max_abs_err": 0.2265625
+          }
+        },
+        {
+          "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_39/timestep_0.pt",
+          "shape": [
+            1,
+            69120,
+            40,
+            128
+          ],
+          "fill": "uta16_a1.5",
+          "lambda": 0.03,
+          "seconds": 1.2303123474121094,
+          "skip_stats": {
+            "row_skip_ratio": 0.22832051611796983,
+            "tile_skip_ratio": 0.0
+          },
+          "vs_sdpa": {
+            "mse": 6.958306767046452e-05,
+            "rmse": 0.00834164658029004,
+            "cosine": 0.9997128248214722,
+            "rel_l2": 0.023959524929523468,
+            "max_abs_err": 2.115234375
+          },
+          "vs_dense_fp8": {
+            "mse": 2.2436221115640365e-05,
+            "rmse": 0.004736688834580584,
+            "cosine": 0.9999070167541504,
+            "rel_l2": 0.013624651357531548,
+            "max_abs_err": 0.1796875
+          }
+        },
+        {
+          "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_39/timestep_0.pt",
+          "shape": [
+            1,
+            69120,
+            40,
+            128
+          ],
+          "fill": "zero",
+          "lambda": 0.1,
+          "seconds": 0.5857644081115723,
+          "skip_stats": {
+            "row_skip_ratio": 0.3323918467078189,
+            "tile_skip_ratio": 0.0
+          },
+          "vs_sdpa": {
+            "mse": 0.0006089538219384849,
+            "rmse": 0.024676989726027866,
+            "cosine": 0.997489869594574,
+            "rel_l2": 0.07087916135787964,
+            "max_abs_err": 2.115234375
+          },
+          "vs_dense_fp8": {
+            "mse": 0.0005647942889481783,
+            "rmse": 0.02376540108957091,
+            "cosine": 0.9976704716682434,
+            "rel_l2": 0.06835900247097015,
+            "max_abs_err": 0.9140625
+          }
+        },
+        {
+          "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_39/timestep_0.pt",
+          "shape": [
+            1,
+            69120,
+            40,
+            128
+          ],
+          "fill": "mean_a1.5",
+          "lambda": 0.1,
+          "seconds": 0.7774763107299805,
+          "skip_stats": {
+            "row_skip_ratio": 0.3323918467078189,
+            "tile_skip_ratio": 0.0
+          },
+          "vs_sdpa": {
+            "mse": 0.0001865201920736581,
+            "rmse": 0.013657239548080648,
+            "cosine": 0.9992300868034363,
+            "rel_l2": 0.03922738507390022,
+            "max_abs_err": 2.115234375
+          },
+          "vs_dense_fp8": {
+            "mse": 0.0001375766150886193,
+            "rmse": 0.01172930582296409,
+            "cosine": 0.9994310736656189,
+            "rel_l2": 0.03373827412724495,
+            "max_abs_err": 0.328125
+          }
+        },
+        {
+          "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_39/timestep_0.pt",
+          "shape": [
+            1,
+            69120,
+            40,
+            128
+          ],
+          "fill": "uta16_a1.5",
+          "lambda": 0.1,
+          "seconds": 1.2320539951324463,
+          "skip_stats": {
+            "row_skip_ratio": 0.3323918467078189,
+            "tile_skip_ratio": 0.0
+          },
+          "vs_sdpa": {
+            "mse": 0.000146399688674137,
+            "rmse": 0.012099573904652055,
+            "cosine": 0.9993957877159119,
+            "rel_l2": 0.034753333777189255,
+            "max_abs_err": 2.115234375
+          },
+          "vs_dense_fp8": {
+            "mse": 9.734940977068618e-05,
+            "rmse": 0.009866580449714389,
+            "cosine": 0.9995971918106079,
+            "rel_l2": 0.028380317613482475,
+            "max_abs_err": 0.2890625
+          }
+        },
+        {
+          "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_39/timestep_0.pt",
+          "shape": [
+            1,
+            69120,
+            40,
+            128
+          ],
+          "fill": "zero",
+          "lambda": 0.2,
+          "seconds": 0.5862269401550293,
+          "skip_stats": {
+            "row_skip_ratio": 0.4607673182441701,
+            "tile_skip_ratio": 0.0
+          },
+          "vs_sdpa": {
+            "mse": 0.001937921973876655,
+            "rmse": 0.04402183519432891,
+            "cosine": 0.992009699344635,
+            "rel_l2": 0.12644292414188385,
+            "max_abs_err": 2.115234375
+          },
+          "vs_dense_fp8": {
+            "mse": 0.0018926762277260423,
+            "rmse": 0.043504898893412476,
+            "cosine": 0.9921867847442627,
+            "rel_l2": 0.12513786554336548,
+            "max_abs_err": 1.03125
+          }
+        },
+        {
+          "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_39/timestep_0.pt",
+          "shape": [
+            1,
+            69120,
+            40,
+            128
+          ],
+          "fill": "mean_a1.5",
+          "lambda": 0.2,
+          "seconds": 0.7781975269317627,
+          "skip_stats": {
+            "row_skip_ratio": 0.4607673182441701,
+            "tile_skip_ratio": 0.0
+          },
+          "vs_sdpa": {
+            "mse": 0.0005003138212487102,
+            "rmse": 0.02236769593071021,
+            "cosine": 0.9979349374771118,
+            "rel_l2": 0.06424622982740402,
+            "max_abs_err": 2.115234375
+          },
+          "vs_dense_fp8": {
+            "mse": 0.00044651361531578004,
+            "rmse": 0.021130868778064475,
+            "cosine": 0.9981509447097778,
+            "rel_l2": 0.06078101322054863,
+            "max_abs_err": 0.48046875
+          }
+        },
+        {
+          "path": "/home/dongyunz/dataset/v-dit/wan21_p1/layer_39/timestep_0.pt",
+          "shape": [
+            1,
+            69120,
+            40,
+            128
+          ],
+          "fill": "uta16_a1.5",
+          "lambda": 0.2,
+          "seconds": 1.2334911823272705,
+          "skip_stats": {
+            "row_skip_ratio": 0.4607673182441701,
+            "tile_skip_ratio": 0.0
+          },
+          "vs_sdpa": {
+            "mse": 0.00034578004851937294,
+            "rmse": 0.01859516196539769,
+            "cosine": 0.9985747337341309,
+            "rel_l2": 0.05341046303510666,
+            "max_abs_err": 2.115234375
+          },
+          "vs_dense_fp8": {
+            "mse": 0.0002927194582298398,
+            "rmse": 0.01710904609350971,
+            "cosine": 0.9987884759902954,
+            "rel_l2": 0.049212608486413956,
+            "max_abs_err": 0.44921875
+          }
+        }
+      ]
+    }
+  ]
+}

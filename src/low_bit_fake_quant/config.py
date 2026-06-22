@@ -26,6 +26,10 @@ VSmoothMode = Literal["off", "per_block"]
 #   mxfp8                   → ``mx`` (per-K-block UE8M0 on P)
 PQuant = Literal["auto", "elementwise", "mx", "dynamic"]
 RowmaxMode = Literal["online", "qm_k"]
+# BLASST fill mode for skipped row/K-blocks in the Triton P-requant path.
+# String probe names such as ``mean_a1.5`` and ``uta16_a1.5`` are also accepted
+# by the Triton wrapper, so this is kept as ``str`` rather than a closed Literal.
+BlasstFill = str
 
 
 @dataclass(frozen=True)
@@ -85,6 +89,17 @@ class QuantConfig:
     # 64x64 is a safe default on H100; head dim is fixed by the input.
     p_requant_block_m: int = 64
     p_requant_block_n: int = 64
+    # BLASST-style skip/fill inside the Triton P-requant path. ``None``
+    # disables it. With a lambda in (0, 1), each row/K-block that satisfies the
+    # BLASST predicate is either dropped (``blasst_fill="zero"``) or filled with
+    # a softmax-free P approximation:
+    #   max/mean/logn/sample8/thr/uta, with ``blasst_fill_alpha`` as the
+    #   multiplier. Legacy strings like ``mean_a1.5`` or ``uta16_a1.5`` encode
+    #   alpha/bin count directly and override these numeric fields.
+    blasst_lambda: float | None = None
+    blasst_fill: BlasstFill = "zero"
+    blasst_fill_alpha: float = 1.0
+    blasst_uta_bins: int = 16
     # V per-block smoothing (Algorithm 2 from the SVG attention paper).
     # ``off``: no V smoothing.
     # ``per_block``: split V into S-blocks of size ``v_smooth_block_size``,
